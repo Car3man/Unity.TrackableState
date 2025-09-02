@@ -3,7 +3,7 @@
   "displayName": "TrackableState",
   "version": "0.1.0",
   "unity": "6000.2",
-  "description": "TBD",
+  "description": "The package that turns your POCO classes into trackable objects.",
   "author": "Arthur Klopoff",
   "keywords": [
     "unity",
