@@ -1,10 +1,10 @@
 ﻿using System.Collections.Immutable;
 using System.Linq;
-using CodeGenerator.Trackables.Internal;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using TrackableStateCodeGenerator.Internal;
 
-namespace CodeGenerator.Trackables;
+namespace TrackableStateCodeGenerator;
 
 [Generator(LanguageNames.CSharp)]
 public sealed class TrackableGenerator : IIncrementalGenerator

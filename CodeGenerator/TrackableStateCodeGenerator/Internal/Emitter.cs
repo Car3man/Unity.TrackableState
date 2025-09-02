@@ -2,7 +2,7 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
 
-namespace CodeGenerator.Trackables.Internal;
+namespace TrackableStateCodeGenerator.Internal;
 
 internal static class Emitter
 {
