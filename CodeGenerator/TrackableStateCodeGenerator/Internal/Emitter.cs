@@ -152,13 +152,13 @@ internal static class Emitter
     {
         if (TypeInspection.IsCollectionType(p.Type))
         {
-            sb.AppendLine(TypeInspection.IsCollectionElementTypeTrackable(p.Type)
-                ? $"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {srcVar}.{p.Name}.AsTrackable(static x => x is null ? null : x.AsTrackable());"
-                : $"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {srcVar}.{p.Name}.AsTrackable(static x => x);");
+            string call = CallAsTrackableCollection($"{srcVar}.{p.Name}", p.Type);
+            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {call};");
         }
         else if (TypeInspection.IsTrackableType(p.Type))
         {
-            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {srcVar}.{p.Name}.AsTrackable();");
+            string call = CallAsTrackableOnType($"{srcVar}.{p.Name}", p.Type);
+            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {call};");
         }
         else
         {
@@ -173,6 +173,8 @@ internal static class Emitter
 
         if (TypeInspection.IsCollectionType(p.Type))
         {
+            string call = CallAsTrackableCollection("value", p.Type);
+            
             sb.AppendLine($"        public override {typeName} {name}");
             sb.AppendLine("        {");
             sb.AppendLine($"            get => base.{name};");
@@ -185,9 +187,7 @@ internal static class Emitter
             sb.AppendLine("                    {");
             sb.AppendLine($"                        DetachChild(\"{name}\", ot);");
             sb.AppendLine("                    }");
-            sb.AppendLine(TypeInspection.IsCollectionElementTypeTrackable(p.Type)
-                        ? $"                    {typeName} newValue = value is null ? null : value.AsTrackable(static x => x is null ? null : x.AsTrackable());"
-                        : $"                    {typeName} newValue = value is null ? null : value.AsTrackable(static x => x);");
+            sb.AppendLine($"                    {typeName} newValue = value is null ? null : {call};");
             sb.AppendLine($"                    base.{name} = newValue;");
             sb.AppendLine("                    if (newValue is ITrackable nt)");
             sb.AppendLine("                    {");
@@ -201,6 +201,8 @@ internal static class Emitter
         }
         else if (TypeInspection.IsTrackableType(p.Type))
         {
+            string call = CallAsTrackableOnType("value", p.Type);
+            
             sb.AppendLine($"        public override {typeName} {name}");
             sb.AppendLine("        {");
             sb.AppendLine($"            get => base.{name};");
@@ -213,7 +215,7 @@ internal static class Emitter
             sb.AppendLine("                    {");
             sb.AppendLine($"                        DetachChild(\"{name}\", ot);");
             sb.AppendLine("                    }");
-            sb.AppendLine($"                    {typeName} newValue = value is null ? null : value.AsTrackable();");
+            sb.AppendLine($"                    {typeName} newValue = value is null ? null : {call};");
             sb.AppendLine($"                    base.{name} = newValue;");
             sb.AppendLine("                    if (newValue is ITrackable nt)");
             sb.AppendLine("                    {");
@@ -242,5 +244,31 @@ internal static class Emitter
             sb.AppendLine("        }");
             sb.AppendLine();
         }
+    }
+    
+    private static string CallAsTrackableOnType(string expr, ITypeSymbol typeSymbol)
+    {
+        return $"{GetExtensionClassFqn(typeSymbol)}.AsTrackable({expr})";
+    }
+    
+    private static string CallAsTrackableCollection(string expr, ITypeSymbol collectionType)
+    {
+        ITypeSymbol typeSymbol = TypeInspection.GetCollectionElementType(collectionType)!;
+        bool elementIsTrackable = TypeInspection.IsTrackableType(typeSymbol);
+        string mapLambda = elementIsTrackable
+            ? $"static x => x is null ? null : {CallAsTrackableOnType("x", typeSymbol)}"
+            : "static x => x";
+        return $"{expr}.AsTrackable({mapLambda})";
+    }
+    
+    private static string GetExtensionClassFqn(ITypeSymbol typeSymbol)
+    {
+        string? ns = typeSymbol.ContainingNamespace?.ToDisplayString();
+        string typeSimpleName = typeSymbol.Name;
+        if (string.IsNullOrEmpty(ns))
+        {
+            return $"global::{typeSimpleName}TrackableExtensions";
+        }
+        return $"global::{ns}.{typeSimpleName}TrackableExtensions";
     }
 }
