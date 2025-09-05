@@ -168,7 +168,7 @@ internal static class Emitter
 
     private static void EmitPropertyOverride(StringBuilder sb, IPropertySymbol p)
     {
-        string typeName = p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+        string typeName = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         string name = p.Name;
 
         if (TypeInspection.IsCollectionType(p.Type))
