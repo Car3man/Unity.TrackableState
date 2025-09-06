@@ -32,6 +32,7 @@ namespace Klopoff.TrackableState
             {
                 Inner.Add(item);
             }
+            HashSetPool<T>.Release(wrappedSet);
             
             HookAll();
         }

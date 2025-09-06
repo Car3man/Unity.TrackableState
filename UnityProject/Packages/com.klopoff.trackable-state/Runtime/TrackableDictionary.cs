@@ -33,6 +33,7 @@ namespace Klopoff.TrackableState
             {
                 Inner[key] = _wrapper(Inner[key]);
             }
+            ListPool<TKey>.Release(keys);
             
             HookAll();
         }
