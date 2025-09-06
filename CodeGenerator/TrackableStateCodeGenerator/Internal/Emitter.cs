@@ -81,6 +81,11 @@ internal static class Emitter
         {
             EmitAssignmentForConstructor(sb, p, srcVar: "source");
         }
+        sb.AppendLine();
+        foreach (IPropertySymbol p in propsVirtual)
+        {
+            EmitAttachmentForConstructor(sb, p);
+        }
         sb.AppendLine("        }");
         sb.AppendLine();
         
@@ -272,6 +277,14 @@ internal static class Emitter
         else
         {
             sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name};");
+        }
+    }
+    
+    private static void EmitAttachmentForConstructor(StringBuilder sb, IPropertySymbol p)
+    {
+        if (TypeInspection.IsTrackableType(p.Type) || TypeInspection.IsCollectionType(p.Type))
+        {
+            sb.AppendLine($"            if (base.{p.Name} is ITrackable t_{p.Name}) AttachChild(\"{p.Name}\", t_{p.Name});");
         }
     }
 
