@@ -29,8 +29,8 @@ namespace Klopoff.TrackableState.Tests
     {
         private SampleRoot NewRoot(out List<ChangeEventArgs> events)
         {
-            var root = new SampleRoot().AsTrackable();
-            var localEvents = new List<ChangeEventArgs>();
+            TrackableSampleRoot root = new SampleRoot().AsTrackable();
+            List<ChangeEventArgs> localEvents = new List<ChangeEventArgs>();
             ((ITrackable)root).Changed += (_, e) => localEvents.Add(e);
             events = localEvents;
             return root;
@@ -39,10 +39,10 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void AsTrackable_Implements_ITrackable_And_IsDirty_Flows()
         {
-            var root = new SampleRoot().AsTrackable();
+            TrackableSampleRoot root = new SampleRoot().AsTrackable();
             Assert.IsInstanceOf<ITrackable>(root);
 
-            var t = (ITrackable)root;
+            ITrackable t = root;
             Assert.IsFalse(t.IsDirty, "Freshly created trackable should not be dirty.");
 
             root.Name = "John";
@@ -58,10 +58,10 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void SimpleProperty_Changes_Raise_PropertySet()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
 
             root.Name = "John Doe";
-            var e1 = events.Single();
+            ChangeEventArgs e1 = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, e1.Kind);
             Assert.AreEqual("Name", e1.Path);
             Assert.IsNull(e1.OldValue);               // Old/New bubble from inner automatically by design
@@ -70,7 +70,7 @@ namespace Klopoff.TrackableState.Tests
 
             events.Clear();
             root.Age = 30;
-            var e2 = events.Single();
+            ChangeEventArgs e2 = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, e2.Kind);
             Assert.AreEqual("Age", e2.Path);
             Assert.AreEqual(30, e2.NewValue);
@@ -79,7 +79,7 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void Setting_Same_Value_DoesNot_Raise_Change()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
 
             root.Name = "X";
             events.Clear();
@@ -91,17 +91,17 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void Inner_Assign_And_Child_Property_Change()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
             
             root.Inner = new SampleInner { Description = "A" };
-            var eSet = events.Single();
+            ChangeEventArgs eSet = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSet.Kind);
             Assert.AreEqual("Inner", eSet.Path);
             Assert.IsNotNull(eSet.NewValue);
 
             events.Clear();
             root.Inner.Description = "B";
-            var eChild = events.Single();
+            ChangeEventArgs eChild = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
             Assert.AreEqual("Inner.Description", eChild.Path);
             Assert.AreEqual("A", eChild.OldValue);
@@ -112,14 +112,14 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void Replacing_Inner_Detaches_Old_And_Attaches_New()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
             
             root.Inner = new SampleInner { Description = "old" };
             events.Clear();
             
-            var oldInner = root.Inner;
+            SampleInner oldInner = root.Inner;
             root.Inner = new SampleInner { Description = "new" };
-            var eSet = events.Single();
+            ChangeEventArgs eSet = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSet.Kind);
             Assert.AreEqual("Inner", eSet.Path);
 
@@ -131,7 +131,7 @@ namespace Klopoff.TrackableState.Tests
             // Changing the new inner should bubble
             events.Clear();
             root.Inner.Description = "changed2";
-            var eChild = events.Single();
+            ChangeEventArgs eChild = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
             Assert.AreEqual("Inner.Description", eChild.Path);
         }
@@ -139,21 +139,21 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void IList_Of_Inner_Object_Collection_Operations()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
 
             root.InnerList = new List<SampleInner>
             {
                 new() { Description = "1" },
                 new() { Description = "2" }
             };
-            var eSetList = events.Single();
+            ChangeEventArgs eSetList = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSetList.Kind);
             Assert.AreEqual("InnerList", eSetList.Path);
 
             // Add
             events.Clear();
             root.InnerList.Add(new SampleInner { Description = "3" });
-            var eAdd = events.Single();
+            ChangeEventArgs eAdd = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eAdd.Kind);
             Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
             Assert.AreEqual("InnerList[2]", eAdd.Path);
@@ -162,7 +162,7 @@ namespace Klopoff.TrackableState.Tests
             // Child change via index
             events.Clear();
             root.InnerList[0].Description = "1'";
-            var eChild = events.Single();
+            ChangeEventArgs eChild = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
             Assert.AreEqual(ChangeKind.ChildChange, eChild.Inner.Kind);
             Assert.AreEqual(ChangeKind.PropertySet, eChild.Inner.Inner.Kind);
@@ -174,7 +174,7 @@ namespace Klopoff.TrackableState.Tests
             // Replace at index
             events.Clear();
             root.InnerList[1] = new SampleInner { Description = "2'" };
-            var eRepl = events.Single();
+            ChangeEventArgs eRepl = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eRepl.Kind);
             Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.Inner.Kind);
             Assert.AreEqual("InnerList[1]", eRepl.Path);
@@ -183,7 +183,7 @@ namespace Klopoff.TrackableState.Tests
             // RemoveAt
             events.Clear();
             root.InnerList.RemoveAt(0);
-            var eRem = events.Single();
+            ChangeEventArgs eRem = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eRem.Kind);
             Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
             Assert.AreEqual("InnerList[0]", eRem.Path);
@@ -192,7 +192,7 @@ namespace Klopoff.TrackableState.Tests
             // Clear
             events.Clear();
             root.InnerList.Clear();
-            var eClr = events.Single();
+            ChangeEventArgs eClr = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
             Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
             Assert.AreEqual("InnerList", eClr.Path);
@@ -202,7 +202,7 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void IList_Of_Primitives_Collection_Operations()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
 
             root.List = new List<string> { "Reading", "Traveling", "Cooking" };
             Assert.AreEqual(ChangeKind.PropertySet, events.Single().Kind);
@@ -210,7 +210,7 @@ namespace Klopoff.TrackableState.Tests
             // Replace at index
             events.Clear();
             root.List[0] = "Hiking";
-            var eRepl = events.Single();
+            ChangeEventArgs eRepl = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eRepl.Kind);
             Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.Inner.Kind);
             Assert.AreEqual("List[0]", eRepl.Path);
@@ -221,7 +221,7 @@ namespace Klopoff.TrackableState.Tests
             // Add
             events.Clear();
             root.List.Add("Swimming");
-            var eAdd = events.Single();
+            ChangeEventArgs eAdd = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eAdd.Kind);
             Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
             Assert.AreEqual("List[3]", eAdd.Path);
@@ -230,9 +230,9 @@ namespace Klopoff.TrackableState.Tests
 
             // Remove by value
             events.Clear();
-            var removed = root.List.Remove("Traveling");
+            bool removed = root.List.Remove("Traveling");
             Assert.IsTrue(removed);
-            var eRem = events.Single();
+            ChangeEventArgs eRem = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eRem.Kind);
             Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
             Assert.AreEqual("List[1]", eRem.Path);
@@ -242,7 +242,7 @@ namespace Klopoff.TrackableState.Tests
             // Clear
             events.Clear();
             root.List.Clear();
-            var eClr = events.Single();
+            ChangeEventArgs eClr = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
             Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
             Assert.AreEqual("List", eClr.Path);
@@ -251,18 +251,18 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void ISet_Of_Primitives_And_Objects_Operations()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
 
             root.Set = new HashSet<string>();
-            var eSet = events.Single();
+            ChangeEventArgs eSet = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSet.Kind);
             Assert.AreEqual("Set", eSet.Path);
 
             // Add
             events.Clear();
-            var added = root.Set.Add("alpha");
+            bool added = root.Set.Add("alpha");
             Assert.IsTrue(added);
-            var eAdd = events.Single();
+            ChangeEventArgs eAdd = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eAdd.Kind);
             Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
             Assert.AreEqual("Set[*]", eAdd.Path);
@@ -277,9 +277,9 @@ namespace Klopoff.TrackableState.Tests
 
             // Remove
             events.Clear();
-            var removed = root.Set.Remove("alpha");
+            bool removed = root.Set.Remove("alpha");
             Assert.IsTrue(removed);
-            var eRem = events.Single();
+            ChangeEventArgs eRem = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eRem.Kind);
             Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
             Assert.AreEqual("Set[*]", eRem.Path);
@@ -289,14 +289,14 @@ namespace Klopoff.TrackableState.Tests
             // Set of objects with child change bubbling using wildcard path
             events.Clear();
             root.InnerSet = new HashSet<SampleInner>();
-            var eSet2 = events.Single();
+            ChangeEventArgs eSet2 = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSet2.Kind);
             Assert.AreEqual("InnerSet", eSet2.Path);
 
             events.Clear();
-            var addedObj = root.InnerSet.Add(new SampleInner { Description = "X" });
+            bool addedObj = root.InnerSet.Add(new SampleInner { Description = "X" });
             Assert.IsTrue(addedObj);
-            var eAddObj = events.Single();
+            ChangeEventArgs eAddObj = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eAddObj.Kind);
             Assert.AreEqual(ChangeKind.CollectionAdd, eAddObj.Inner.Kind);
             Assert.AreEqual("InnerSet[*]", eAddObj.Path);
@@ -304,7 +304,7 @@ namespace Klopoff.TrackableState.Tests
 
             events.Clear();
             root.InnerSet.Single().Description = "Y";
-            var eChild = events.Single();
+            ChangeEventArgs eChild = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
             Assert.AreEqual(ChangeKind.ChildChange, eChild.Inner.Kind);
             Assert.AreEqual(ChangeKind.PropertySet, eChild.Inner.Inner.Kind);
@@ -316,7 +316,7 @@ namespace Klopoff.TrackableState.Tests
             // Clear
             events.Clear();
             root.InnerSet.Clear();
-            var eClr = events.Single();
+            ChangeEventArgs eClr = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
             Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
             Assert.AreEqual("InnerSet", eClr.Path);
@@ -325,18 +325,18 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void IDictionary_Of_Primitives_And_Objects_Operations()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
 
             // Dictionary of primitives
             root.Dict = new Dictionary<string, string>();
-            var eSet = events.Single();
+            ChangeEventArgs eSet = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSet.Kind);
             Assert.AreEqual("Dict", eSet.Path);
 
             // Add new key
             events.Clear();
             root.Dict["en"] = "Hello";
-            var eAdd = events.Single();
+            ChangeEventArgs eAdd = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eAdd.Kind);
             Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
             Assert.AreEqual("Dict[en]", eAdd.Path);
@@ -347,7 +347,7 @@ namespace Klopoff.TrackableState.Tests
             // Replace existing key
             events.Clear();
             root.Dict["en"] = "Hello2";
-            var eRepl = events.Single();
+            ChangeEventArgs eRepl = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eRepl.Kind);
             Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.Inner.Kind);
             Assert.AreEqual("Dict[en]", eRepl.Path);
@@ -358,9 +358,9 @@ namespace Klopoff.TrackableState.Tests
 
             // Remove key
             events.Clear();
-            var removed = root.Dict.Remove("en");
+            bool removed = root.Dict.Remove("en");
             Assert.IsTrue(removed);
-            var eRem = events.Single();
+            ChangeEventArgs eRem = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eRem.Kind);
             Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
             Assert.AreEqual("Dict[en]", eRem.Path);
@@ -371,7 +371,7 @@ namespace Klopoff.TrackableState.Tests
             // Clear
             events.Clear();
             root.Dict.Clear();
-            var eClr = events.Single();
+            ChangeEventArgs eClr = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
             Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
             Assert.AreEqual("Dict", eClr.Path);
@@ -379,13 +379,13 @@ namespace Klopoff.TrackableState.Tests
             // Dictionary of objects with child change bubbling using "InnerDict[key].Property"
             events.Clear();
             root.InnerDict = new Dictionary<string, SampleInner>();
-            var eSet2 = events.Single();
+            ChangeEventArgs eSet2 = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSet2.Kind);
             Assert.AreEqual("InnerDict", eSet2.Path);
 
             events.Clear();
             root.InnerDict["key"] = new SampleInner { Description = "A" };
-            var eAdd2 = events.Single();
+            ChangeEventArgs eAdd2 = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eAdd2.Kind);
             Assert.AreEqual(ChangeKind.CollectionAdd, eAdd2.Inner.Kind);
             Assert.AreEqual("InnerDict[key]", eAdd2.Path);
@@ -393,7 +393,7 @@ namespace Klopoff.TrackableState.Tests
 
             events.Clear();
             root.InnerDict["key"].Description = "B";
-            var eChild = events.Single();
+            ChangeEventArgs eChild = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
             Assert.AreEqual(ChangeKind.ChildChange, eChild.Inner.Kind);
             Assert.AreEqual(ChangeKind.PropertySet, eChild.Inner.Inner.Kind);
@@ -404,9 +404,9 @@ namespace Klopoff.TrackableState.Tests
 
             // Replace value object and ensure old is detached
             events.Clear();
-            var old = root.InnerDict["key"];
+            SampleInner old = root.InnerDict["key"];
             root.InnerDict["key"] = new SampleInner { Description = "C" };
-            var eRepl2 = events.Single();
+            ChangeEventArgs eRepl2 = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eRepl2.Kind);
             Assert.AreEqual(ChangeKind.CollectionReplace, eRepl2.Inner.Kind);
             Assert.AreEqual("InnerDict[key]", eRepl2.Path);
@@ -418,7 +418,7 @@ namespace Klopoff.TrackableState.Tests
 
             events.Clear();
             root.InnerDict["key"].Description = "D";
-            var eChild2 = events.Single();
+            ChangeEventArgs eChild2 = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eChild2.Kind);
             Assert.AreEqual(ChangeKind.ChildChange, eChild2.Inner.Kind);
             Assert.AreEqual(ChangeKind.PropertySet, eChild2.Inner.Inner.Kind);
@@ -430,7 +430,7 @@ namespace Klopoff.TrackableState.Tests
             // Clear
             events.Clear();
             root.InnerDict.Clear();
-            var eClr2 = events.Single();
+            ChangeEventArgs eClr2 = events.Single();
             Assert.AreEqual(ChangeKind.ChildChange, eClr2.Kind);
             Assert.AreEqual(ChangeKind.CollectionClear, eClr2.Inner.Kind);
             Assert.AreEqual("InnerDict", eClr2.Path);
@@ -439,15 +439,15 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void Replacing_Collections_Detaches_Old_Collections_And_Items()
         {
-            var root = NewRoot(out var events);
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
 
             // IList detach
             root.InnerList = new List<SampleInner> { new() { Description = "L1" } };
             events.Clear();
 
-            var oldList = root.InnerList;
+            IList<SampleInner> oldList = root.InnerList;
             root.InnerList = new List<SampleInner>();
-            var eSetList = events.Single();
+            ChangeEventArgs eSetList = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSetList.Kind);
             Assert.AreEqual("InnerList", eSetList.Path);
 
@@ -459,23 +459,23 @@ namespace Klopoff.TrackableState.Tests
             root.InnerSet = new HashSet<SampleInner> { new() { Description = "S1" } };
             events.Clear();
 
-            var oldSet = root.InnerSet;
+            ISet<SampleInner> oldSet = root.InnerSet;
             root.InnerSet = new HashSet<SampleInner>();
-            var eSetSet = events.Single();
+            ChangeEventArgs eSetSet = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSetSet.Kind);
             Assert.AreEqual("InnerSet", eSetSet.Path);
 
             events.Clear();
-            foreach (var it in oldSet) it.Description = "S1x";
+            foreach (SampleInner it in oldSet) it.Description = "S1x";
             Assert.IsEmpty(events, "Changes in old set items should not bubble after the set is replaced.");
 
             // IDictionary detach
             root.InnerDict = new Dictionary<string, SampleInner> { ["k"] = new() { Description = "D1" } };
             events.Clear();
 
-            var oldDict = root.InnerDict;
+            IDictionary<string, SampleInner> oldDict = root.InnerDict;
             root.InnerDict = new Dictionary<string, SampleInner>();
-            var eSetDict = events.Single();
+            ChangeEventArgs eSetDict = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, eSetDict.Kind);
             Assert.AreEqual("InnerDict", eSetDict.Path);
 
@@ -487,8 +487,8 @@ namespace Klopoff.TrackableState.Tests
         [Test]
         public void AcceptChanges_Resets_Dirty_And_Does_Not_Suppress_Events()
         {
-            var root = NewRoot(out var events);
-            var t = (ITrackable)root;
+            SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
+            ITrackable t = (ITrackable)root;
 
             root.Name = "A";
             Assert.IsTrue(t.IsDirty);
@@ -502,11 +502,271 @@ namespace Klopoff.TrackableState.Tests
             events.Clear();
             root.Name = "B";
             Assert.IsTrue(t.IsDirty);
-            var e = events.Single();
+            ChangeEventArgs e = events.Single();
             Assert.AreEqual(ChangeKind.PropertySet, e.Kind);
             Assert.AreEqual("Name", e.Path);
             Assert.AreEqual("A", e.OldValue);
             Assert.AreEqual("B", e.NewValue);
+        }
+        
+        private TrackableSampleRoot CreateTrackableSample()
+        {
+            SampleRoot source = new SampleRoot
+            {
+                Name = "Initial",
+                Age = 30,
+                Inner = new SampleInner { Description = "Inner-Init" },
+                InnerList = new List<SampleInner>
+                {
+                    new() { Description = "IL-Init-1" },
+                    new() { Description = "IL-Init-2" },
+                },
+                List = new List<string> { "L-1", "L-2" },
+                InnerSet = new HashSet<SampleInner>
+                {
+                    new() { Description = "IS-Init-1" },
+                    new() { Description = "IS-Init-2" },
+                },
+                Set = new HashSet<string> { "S-1", "S-2" },
+                InnerDict = new Dictionary<string, SampleInner>
+                {
+                    ["K1"] = new() { Description = "ID-Init-1" },
+                    ["K2"] = new() { Description = "ID-Init-2" },
+                },
+                Dict = new Dictionary<string, string>
+                {
+                    ["K1"] = "V-Init-1",
+                    ["K2"] = "V-Init-2",
+                }
+            };
+
+            return source.AsTrackable();
+        }
+        
+        [Test]
+        public void AsNormal_ReturnsPlainPocoTypes_NotTrackable()
+        {
+            TrackableSampleRoot trackable = CreateTrackableSample();
+            SampleRoot normal = trackable.AsNormal();
+            
+            Assert.IsNotNull(normal);
+            Assert.IsNotInstanceOf<TrackableSampleRoot>(normal, "AsNormal should return plain SampleRoot, not TrackableSampleRoot.");
+            Assert.IsFalse(normal is ITrackable, "AsNormal should not return an ITrackable instance.");
+            
+            if (normal.Inner != null)
+            {
+                Assert.IsFalse(normal.Inner is ITrackable, "Inner must be a plain SampleInner.");
+            }
+            
+            Assert.IsFalse(normal.InnerList is ITrackable, "InnerList must be a plain IList<T>.");
+            Assert.IsFalse(normal.List is ITrackable, "List must be a plain IList<T>.");
+            Assert.IsFalse(normal.InnerSet is ITrackable, "InnerSet must be a plain ISet<T>.");
+            Assert.IsFalse(normal.Set is ITrackable, "Set must be a plain ISet<T>.");
+            Assert.IsFalse(normal.InnerDict is ITrackable, "InnerDict must be a plain IDictionary<TKey, TValue>.");
+            Assert.IsFalse(normal.Dict is ITrackable, "Dict must be a plain IDictionary<TKey, TValue>.");
+            
+            if (normal.InnerList != null)
+            {
+                foreach (SampleInner item in normal.InnerList)
+                {
+                    Assert.IsFalse(item is ITrackable, "InnerList elements must be plain SampleInner.");
+                }
+            }
+
+            if (normal.InnerSet != null)
+            {
+                foreach (SampleInner item in normal.InnerSet)
+                {
+                    Assert.IsFalse(item is ITrackable, "InnerSet elements must be plain SampleInner.");
+                }
+            }
+
+            if (normal.InnerDict != null)
+            {
+                foreach (KeyValuePair<string, SampleInner> kv in normal.InnerDict)
+                {
+                    Assert.IsFalse(kv.Value is ITrackable, "InnerDict values must be plain SampleInner.");
+                }
+            }
+        }
+
+        [Test]
+        public void AsNormal_ValuesMatchLatestTrackableState()
+        {
+            TrackableSampleRoot trackable = CreateTrackableSample();
+            trackable.Name = "John";
+            trackable.Age = 42;
+            trackable.Inner = new SampleInner { Description = "Inner-Updated" };
+            trackable.InnerList = new List<SampleInner>
+            {
+                new() { Description = "IL-1" },
+                new() { Description = "IL-2" },
+            };
+            trackable.List = new List<string> { "A", "B", "C" };
+            trackable.InnerSet = new HashSet<SampleInner>
+            {
+                new() { Description = "IS-1" },
+                new() { Description = "IS-2" },
+            };
+            trackable.Set = new HashSet<string> { "X", "Y" };
+            trackable.InnerDict = new Dictionary<string, SampleInner>
+            {
+                ["K1"] = new() { Description = "ID-1" },
+                ["K2"] = new() { Description = "ID-2" },
+            };
+            trackable.Dict = new Dictionary<string, string>
+            {
+                ["K1"] = "V1",
+                ["K2"] = "V2",
+            };
+            
+            SampleRoot normal = trackable.AsNormal();
+            
+            Assert.AreEqual(trackable.Name, normal.Name);
+            Assert.AreEqual(trackable.Age, normal.Age);
+            Assert.AreEqual(trackable.Inner?.Description, normal.Inner?.Description);
+            
+            CollectionAssert.AreEqual(
+                trackable.InnerList?.Select(x => x?.Description).ToList(),
+                normal.InnerList?.Select(x => x?.Description).ToList(),
+                "InnerList contents should match by Description");
+
+            CollectionAssert.AreEqual(
+                trackable.List?.ToList(),
+                normal.List?.ToList(),
+                "List contents should match");
+            
+            CollectionAssert.AreEquivalent(
+                trackable.InnerSet?.Select(x => x?.Description).ToList(),
+                normal.InnerSet?.Select(x => x?.Description).ToList(),
+                "InnerSet contents should match by Description");
+
+            CollectionAssert.AreEquivalent(
+                trackable.Set?.ToList(),
+                normal.Set?.ToList(),
+                "Set contents should match");
+            
+            CollectionAssert.AreEquivalent(
+                trackable.InnerDict?.Keys.ToList(),
+                normal.InnerDict?.Keys.ToList(),
+                "InnerDict keys should match");
+            if (trackable.InnerDict != null && normal.InnerDict != null)
+            {
+                foreach (string k in trackable.InnerDict.Keys)
+                {
+                    Assert.AreEqual(trackable.InnerDict[k]?.Description, normal.InnerDict[k]?.Description, $"InnerDict value mismatch for key {k}");
+                }
+            }
+
+            CollectionAssert.AreEquivalent(
+                trackable.Dict?.Keys.ToList(),
+                normal.Dict?.Keys.ToList(),
+                "Dict keys should match");
+            if (trackable.Dict != null && normal.Dict != null)
+            {
+                foreach (string k in trackable.Dict.Keys)
+                {
+                    Assert.AreEqual(trackable.Dict[k], normal.Dict[k], $"Dict value mismatch for key {k}");
+                }
+            }
+        }
+
+        [Test]
+        public void AsNormal_ResultIsDetached_MutationsDoNotAffectTrackable()
+        {
+            TrackableSampleRoot trackable = CreateTrackableSample();
+            
+            var snapshot = new
+            {
+                trackable.Name,
+                trackable.Age,
+                InnerDesc = trackable.Inner?.Description,
+                InnerList = trackable.InnerList?.Select(x => x?.Description).ToList(),
+                List = trackable.List?.ToList(),
+                InnerSet = trackable.InnerSet?.Select(x => x?.Description).ToHashSet(),
+                Set = trackable.Set?.ToHashSet(),
+                InnerDict = trackable.InnerDict?.ToDictionary(kv => kv.Key, kv => kv.Value?.Description),
+                Dict = trackable.Dict?.ToDictionary(kv => kv.Key, kv => kv.Value),
+            };
+
+            SampleRoot normal = trackable.AsNormal();
+            
+            normal.Name = "Changed-Name";
+            normal.Age += 10;
+
+            if (normal.Inner != null)
+            {
+                normal.Inner.Description = "Changed-Inner";
+            }
+
+            if (normal.InnerList is { Count: > 0 })
+            {
+                normal.InnerList[0] = new SampleInner { Description = "Changed-IL-0" };
+                normal.InnerList.Add(new SampleInner { Description = "Added-IL" });
+            }
+
+            if (normal.List != null)
+            {
+                normal.List.Add("Added-L");
+                if (normal.List.Count > 0) normal.List[0] = "Changed-L-0";
+            }
+
+            if (normal.InnerSet != null)
+            {
+                normal.InnerSet.Add(new SampleInner { Description = "Added-IS" });
+            }
+
+            if (normal.Set != null)
+            {
+                normal.Set.Add("Added-S");
+            }
+
+            if (normal.InnerDict != null)
+            {
+                normal.InnerDict["K1"] = new SampleInner { Description = "Changed-ID-1" };
+                normal.InnerDict["K-New"] = new SampleInner { Description = "Added-ID" };
+            }
+
+            if (normal.Dict != null)
+            {
+                normal.Dict["K1"] = "Changed-V1";
+                normal.Dict["K-New"] = "Added-V";
+            }
+            
+            Assert.AreEqual(snapshot.Name, trackable.Name, "Trackable.Name should not be affected by normal mutations.");
+            Assert.AreEqual(snapshot.Age, trackable.Age, "Trackable.Age should not be affected by normal mutations.");
+            Assert.AreEqual(snapshot.InnerDesc, trackable.Inner?.Description, "Trackable.Inner should not be affected by normal mutations.");
+
+            CollectionAssert.AreEqual(snapshot.InnerList, trackable.InnerList?.Select(x => x?.Description).ToList(), "Trackable.InnerList should not be affected.");
+            CollectionAssert.AreEqual(snapshot.List, trackable.List?.ToList(), "Trackable.List should not be affected.");
+            CollectionAssert.AreEquivalent(snapshot.InnerSet, trackable.InnerSet?.Select(x => x?.Description).ToHashSet(), "Trackable.InnerSet should not be affected.");
+            CollectionAssert.AreEquivalent(snapshot.Set, trackable.Set?.ToHashSet(), "Trackable.Set should not be affected.");
+
+            if (snapshot.InnerDict == null)
+            {
+                Assert.IsNull(trackable.InnerDict, "Trackable.InnerDict should remain null.");
+            }
+            else
+            {
+                CollectionAssert.AreEquivalent(snapshot.InnerDict.Keys, trackable.InnerDict.Keys, "Trackable.InnerDict keys should not change.");
+                foreach (string k in snapshot.InnerDict.Keys)
+                {
+                    Assert.AreEqual(snapshot.InnerDict[k], trackable.InnerDict[k]?.Description, $"Trackable.InnerDict value changed for key {k}");
+                }
+            }
+
+            if (snapshot.Dict == null)
+            {
+                Assert.IsNull(trackable.Dict, "Trackable.Dict should remain null.");
+            }
+            else
+            {
+                CollectionAssert.AreEquivalent(snapshot.Dict.Keys, trackable.Dict.Keys, "Trackable.Dict keys should not change.");
+                foreach (string k in snapshot.Dict.Keys)
+                {
+                    Assert.AreEqual(snapshot.Dict[k], trackable.Dict[k], $"Trackable.Dict value changed for key {k}");
+                }
+            }
         }
     }
 }

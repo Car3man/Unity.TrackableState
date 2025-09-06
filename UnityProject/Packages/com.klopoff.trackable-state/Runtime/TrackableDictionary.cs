@@ -7,17 +7,21 @@ namespace Klopoff.TrackableState
 {
     public class TrackableDictionary<TKey, TValue> : IDictionary<TKey, TValue>, ITrackable
     {
-        private readonly IDictionary<TKey, TValue> _inner;
+        internal readonly IDictionary<TKey, TValue> Inner;
+        
         private readonly Func<TValue, TValue> _wrapper;
+        private readonly Func<TValue, TValue> _unwrapper;
         private readonly Dictionary<ITrackable, HashSet<TKey>> _valueToKeys;
         
         public bool IsDirty { get; private set; }
         public event EventHandler<ChangeEventArgs> Changed;
         
-        public TrackableDictionary(IDictionary<TKey, TValue> inner, Func<TValue, TValue> wrapper)
+        public TrackableDictionary(IDictionary<TKey, TValue> inner, Func<TValue, TValue> wrapper, Func<TValue, TValue> unwrapper)
         {
-            _inner = inner;
+            Inner = inner;
+            
             _wrapper = wrapper ?? (x => x);
+            _unwrapper = unwrapper ?? (x => x);
             _valueToKeys = new Dictionary<ITrackable, HashSet<TKey>>();
 
             List<TKey> keys = ListPool<TKey>.Get();
@@ -27,15 +31,27 @@ namespace Klopoff.TrackableState
             }
             foreach (TKey key in keys)
             {
-                _inner[key] = _wrapper(_inner[key]);
+                Inner[key] = _wrapper(Inner[key]);
             }
             
             HookAll();
         }
+        
+        public IDictionary<TKey, TValue> Normalize()
+        {
+            Dictionary<TKey, TValue> normalized = new Dictionary<TKey, TValue>(Inner.Count);
+            
+            foreach (KeyValuePair<TKey, TValue> kv in Inner)
+            {
+                normalized[kv.Key] = _unwrapper(kv.Value);
+            }
+            
+            return normalized;
+        }
 
         public void AcceptChanges()
         {
-            foreach (KeyValuePair<TKey, TValue> kv in _inner)
+            foreach (KeyValuePair<TKey, TValue> kv in Inner)
             {
                 if (kv.Value is ITrackable t)
                 {
@@ -48,7 +64,7 @@ namespace Klopoff.TrackableState
 
         private void HookAll()
         {
-            foreach (KeyValuePair<TKey, TValue> kv in _inner)
+            foreach (KeyValuePair<TKey, TValue> kv in Inner)
             {
                 Hook(kv.Key, kv.Value);
             }
@@ -100,11 +116,11 @@ namespace Klopoff.TrackableState
         
         public TValue this[TKey key]
         {
-            get => _inner[key];
+            get => Inner[key];
             set
             {
                 TValue wrappedValue = _wrapper(value);
-                bool had = _inner.TryGetValue(key, out TValue old);
+                bool had = Inner.TryGetValue(key, out TValue old);
                 if (!had || !EqualityComparer<TValue>.Default.Equals(old!, wrappedValue))
                 {
                     if (had)
@@ -112,7 +128,7 @@ namespace Klopoff.TrackableState
                         Unhook(key, old);
                     }
                     
-                    _inner[key] = wrappedValue;
+                    Inner[key] = wrappedValue;
                     Hook(key, wrappedValue);
 
                     IsDirty = true;
@@ -124,31 +140,31 @@ namespace Klopoff.TrackableState
             }
         }
 
-        public ICollection<TKey> Keys => _inner.Keys;
+        public ICollection<TKey> Keys => Inner.Keys;
         
-        public ICollection<TValue> Values => _inner.Values;
+        public ICollection<TValue> Values => Inner.Values;
         
-        public int Count => _inner.Count;
+        public int Count => Inner.Count;
         
-        public bool IsReadOnly => _inner.IsReadOnly;
+        public bool IsReadOnly => Inner.IsReadOnly;
 
         public void Add(TKey key, TValue value)
         {
             TValue wrappedValue = _wrapper(value);
-            _inner.Add(key, wrappedValue);
+            Inner.Add(key, wrappedValue);
             Hook(key, wrappedValue);
             IsDirty = true;
             Changed?.Invoke(this, ChangeEventArgs.DictAdd(string.Empty, key, value));
         }
 
-        public bool ContainsKey(TKey key) => _inner.ContainsKey(key);
+        public bool ContainsKey(TKey key) => Inner.ContainsKey(key);
 
         public bool Remove(TKey key)
         {
-            if (_inner.TryGetValue(key, out TValue value))
+            if (Inner.TryGetValue(key, out TValue value))
             {
                 Unhook(key, value);
-                bool ok = _inner.Remove(key);
+                bool ok = Inner.Remove(key);
                 if (ok)
                 {
                     IsDirty = true;
@@ -159,48 +175,58 @@ namespace Klopoff.TrackableState
             return false;
         }
 
-        public bool TryGetValue(TKey key, out TValue value) => _inner.TryGetValue(key, out value!);
+        public bool TryGetValue(TKey key, out TValue value) => Inner.TryGetValue(key, out value!);
 
         public void Add(KeyValuePair<TKey, TValue> item) => Add(item.Key, item.Value);
         
         public void Clear()
         {
-            if (_inner.Count > 0)
+            if (Inner.Count > 0)
             {
                 IsDirty = true;
             }
             
-            foreach (KeyValuePair<TKey, TValue> kv in _inner)
+            foreach (KeyValuePair<TKey, TValue> kv in Inner)
             {
                 Unhook(kv.Key, kv.Value);
             }
             
-            _inner.Clear();
+            Inner.Clear();
             Changed?.Invoke(this, ChangeEventArgs.DictClear(string.Empty));
         }
 
-        public bool Contains(KeyValuePair<TKey, TValue> item) => _inner.Contains(item);
+        public bool Contains(KeyValuePair<TKey, TValue> item) => Inner.Contains(item);
         
-        public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex) => _inner.CopyTo(array, arrayIndex);
+        public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex) => Inner.CopyTo(array, arrayIndex);
         
         public bool Remove(KeyValuePair<TKey, TValue> item) => Remove(item.Key);
         
-        public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => _inner.GetEnumerator();
+        public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => Inner.GetEnumerator();
         
-        IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)_inner).GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)Inner).GetEnumerator();
         
         #endregion
     }
     
     public static class TrackableDictionaryExtensions
     {
-        public static TrackableDictionary<TKey, TValue> AsTrackable<TKey, TValue>(this IDictionary<TKey, TValue> source, Func<TValue, TValue> wrapper)
+        public static TrackableDictionary<TKey, TValue> AsTrackable<TKey, TValue>(this IDictionary<TKey, TValue> source,
+            Func<TValue, TValue> wrapper, Func<TValue, TValue> unwrapper)
         {
             if (source is TrackableDictionary<TKey, TValue> t)
             {
                 return t;
             }
-            return new TrackableDictionary<TKey, TValue>(source, wrapper);
+            return new TrackableDictionary<TKey, TValue>(source, wrapper, unwrapper);
+        }
+        
+        public static IDictionary<TKey, TValue> AsNormal<TKey, TValue>(this IDictionary<TKey, TValue> source)
+        {
+            if (source is TrackableDictionary<TKey, TValue> t)
+            {
+                return t.Normalize();
+            }
+            return source;
         }
     }
 }

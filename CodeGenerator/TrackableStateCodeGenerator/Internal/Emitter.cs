@@ -58,7 +58,7 @@ internal static class Emitter
 
         sb.AppendLine($"    public partial class {trackableName} : {baseName}, ITrackable");
         sb.AppendLine("    {");
-        sb.AppendLine("        private readonly Dictionary<ITrackable, string> _childTrackables = new();");
+        sb.AppendLine("        private readonly Dictionary<ITrackable, string> _childTrackables;");
         sb.AppendLine();
         sb.AppendLine("        public bool IsDirty { get; private set; }");
         sb.AppendLine("        public event EventHandler<ChangeEventArgs> Changed;");
@@ -70,18 +70,33 @@ internal static class Emitter
             EmitPropertyOverride(sb, p);
         }
 
-        // ctors
+        // ctor
         sb.AppendLine($"        public {trackableName}() {{ }}");
         sb.AppendLine();
         sb.AppendLine($"        public {trackableName}({baseName} source)");
         sb.AppendLine("        {");
+        sb.AppendLine("            _childTrackables = new Dictionary<ITrackable, string>();");
+        sb.AppendLine();
         foreach (IPropertySymbol p in propsVirtual)
         {
             EmitAssignmentForConstructor(sb, p, srcVar: "source");
         }
         sb.AppendLine("        }");
         sb.AppendLine();
-
+        
+        // normalizer
+        sb.AppendLine($"        public {baseName} Normalize()");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            return new {baseName}");
+        sb.AppendLine("            {");
+        foreach (IPropertySymbol p in propsVirtual)
+        {
+            EmitAssignmentForNormalizer(sb, p);
+        }
+        sb.AppendLine("            };");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        
         // AcceptChanges
         sb.AppendLine("        public void AcceptChanges()");
         sb.AppendLine("        {");
@@ -138,6 +153,20 @@ internal static class Emitter
         sb.AppendLine("            }");
         sb.AppendLine($"            return new {trackableName}(source);");
         sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine($"        public static {baseName} AsNormal(this {trackableName} source)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            return source.Normalize();");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine($"        public static {baseName} AsNormal(this {baseName} source)");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            if (source is {trackableName} t)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                return t.Normalize();");
+        sb.AppendLine("            }");
+        sb.AppendLine("            return source;");
+        sb.AppendLine("        }");
         sb.AppendLine("    }");
         
         if (!string.IsNullOrEmpty(ns))
@@ -146,24 +175,6 @@ internal static class Emitter
         }
 
         spc.AddSource(hintName: $"{trackableName}.g.cs", source: sb.ToString());
-    }
-
-    private static void EmitAssignmentForConstructor(StringBuilder sb, IPropertySymbol p, string srcVar)
-    {
-        if (TypeInspection.IsCollectionType(p.Type))
-        {
-            string call = CallAsTrackableCollection($"{srcVar}.{p.Name}", p.Type);
-            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {call};");
-        }
-        else if (TypeInspection.IsTrackableType(p.Type))
-        {
-            string call = CallAsTrackableOnType($"{srcVar}.{p.Name}", p.Type);
-            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {call};");
-        }
-        else
-        {
-            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name};");
-        }
     }
 
     private static void EmitPropertyOverride(StringBuilder sb, IPropertySymbol p)
@@ -245,7 +256,38 @@ internal static class Emitter
             sb.AppendLine();
         }
     }
-    
+
+    private static void EmitAssignmentForConstructor(StringBuilder sb, IPropertySymbol p, string srcVar)
+    {
+        if (TypeInspection.IsCollectionType(p.Type))
+        {
+            string call = CallAsTrackableCollection($"{srcVar}.{p.Name}", p.Type);
+            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {call};");
+        }
+        else if (TypeInspection.IsTrackableType(p.Type))
+        {
+            string call = CallAsTrackableOnType($"{srcVar}.{p.Name}", p.Type);
+            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name} is null ? null : {call};");
+        }
+        else
+        {
+            sb.AppendLine($"            base.{p.Name} = {srcVar}.{p.Name};");
+        }
+    }
+
+    private static void EmitAssignmentForNormalizer(StringBuilder sb, IPropertySymbol p)
+    {
+        if (TypeInspection.IsCollectionType(p.Type) || TypeInspection.IsTrackableType(p.Type))
+        {
+            string call = CallAsNormalOnType($"{p.Name}", p.Type);
+            sb.AppendLine($"                {p.Name} = {p.Name} is null ? null : {call},");
+        }
+        else
+        {
+            sb.AppendLine($"                {p.Name} = {p.Name},");
+        }
+    }
+
     private static string CallAsTrackableOnType(string expr, ITypeSymbol typeSymbol)
     {
         return $"{GetExtensionClassFqn(typeSymbol)}.AsTrackable({expr})";
@@ -255,14 +297,25 @@ internal static class Emitter
     {
         ITypeSymbol typeSymbol = TypeInspection.GetCollectionElementType(collectionType)!;
         bool elementIsTrackable = TypeInspection.IsTrackableType(typeSymbol);
-        string mapLambda = elementIsTrackable
+        string wrapperLambda = elementIsTrackable
             ? $"static x => x is null ? null : {CallAsTrackableOnType("x", typeSymbol)}"
             : "static x => x";
-        return $"{expr}.AsTrackable({mapLambda})";
+        string unwrapperLambda = elementIsTrackable
+            ? $"static x => x is null ? null : {CallAsNormalOnType("x", typeSymbol)}"
+            : "static x => x";
+        return $"{expr}.AsTrackable({wrapperLambda}, {unwrapperLambda})";
+    }
+    
+    private static string CallAsNormalOnType(string expr, ITypeSymbol typeSymbol)
+    {
+        return $"{GetExtensionClassFqn(typeSymbol)}.AsNormal({expr})";
     }
     
     private static string GetExtensionClassFqn(ITypeSymbol typeSymbol)
     {
+        if (TypeInspection.IsIDictionary(typeSymbol)) return "global::Klopoff.TrackableState.TrackableDictionaryExtensions";
+        if (TypeInspection.IsISet(typeSymbol)) return "global::Klopoff.TrackableState.TrackableSetExtensions";
+        if (TypeInspection.IsIList(typeSymbol)) return "global::Klopoff.TrackableState.TrackableListExtensions";
         string? ns = typeSymbol.ContainingNamespace?.ToDisplayString();
         string typeSimpleName = typeSymbol.Name;
         if (string.IsNullOrEmpty(ns))
