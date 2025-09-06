@@ -1,7 +1,7 @@
 ﻿{
   "name": "com.klopoff.trackable-state",
   "displayName": "TrackableState",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "unity": "6000.2",
   "description": "The package that turns your POCO classes into trackable objects.",
   "author": "Arthur Klopoff",
@@ -14,8 +14,6 @@
   "files": [
     "/package.json",
     "/package.json.meta",
-    "/Runtime",
-    "/Runtime.meta",
     "/Plugins",
     "/Plugins.meta"
   ],
