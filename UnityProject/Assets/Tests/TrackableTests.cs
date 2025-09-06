@@ -66,7 +66,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual("Name", e1.Path);
             Assert.IsNull(e1.OldValue);               // Old/New bubble from inner automatically by design
             Assert.AreEqual("John Doe", e1.NewValue);
-            Assert.IsNull(e1.Index);
+            Assert.AreEqual(-1, e1.Index);
 
             events.Clear();
             root.Age = 30;
@@ -106,7 +106,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual("Inner.Description", eChild.Path);
             Assert.AreEqual("A", eChild.OldValue);
             Assert.AreEqual("B", eChild.NewValue);
-            Assert.IsNull(eChild.Index);
+            Assert.AreEqual(-1, eChild.Index);
         }
 
         [Test]
@@ -196,7 +196,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
             Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
             Assert.AreEqual("InnerList", eClr.Path);
-            Assert.IsNull(eClr.Index);
+            Assert.AreEqual(-1, eClr.Index);
         }
 
         [Test]
@@ -267,7 +267,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
             Assert.AreEqual("Set[*]", eAdd.Path);
             Assert.AreEqual("alpha", eAdd.NewValue);
-            Assert.IsNull(eAdd.Index);
+            Assert.AreEqual(-1, eAdd.Index);
 
             // Add duplicate - should not fire change
             events.Clear();
@@ -284,7 +284,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
             Assert.AreEqual("Set[*]", eRem.Path);
             Assert.AreEqual("alpha", eRem.OldValue);
-            Assert.IsNull(eRem.Index);
+            Assert.AreEqual(-1, eRem.Index);
 
             // Set of objects with child change bubbling using wildcard path
             events.Clear();
@@ -300,7 +300,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual(ChangeKind.ChildChange, eAddObj.Kind);
             Assert.AreEqual(ChangeKind.CollectionAdd, eAddObj.Inner.Kind);
             Assert.AreEqual("InnerSet[*]", eAddObj.Path);
-            Assert.IsNull(eAddObj.Index);
+            Assert.AreEqual(-1, eAddObj.Index);
 
             events.Clear();
             root.InnerSet.Single().Description = "Y";
@@ -311,7 +311,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual("InnerSet[*].Description", eChild.Path);
             Assert.AreEqual("X", eChild.OldValue);
             Assert.AreEqual("Y", eChild.NewValue);
-            Assert.IsNull(eChild.Index);
+            Assert.AreEqual(-1, eChild.Index);
 
             // Clear
             events.Clear();
@@ -342,7 +342,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual("Dict[en]", eAdd.Path);
             Assert.AreEqual("en", eAdd.Key);
             Assert.AreEqual("Hello", eAdd.NewValue);
-            Assert.IsNull(eAdd.Index);
+            Assert.AreEqual(-1, eAdd.Index);
 
             // Replace existing key
             events.Clear();
@@ -354,7 +354,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual("en", eRepl.Key);
             Assert.AreEqual("Hello", eRepl.OldValue);
             Assert.AreEqual("Hello2", eRepl.NewValue);
-            Assert.IsNull(eRepl.Index);
+            Assert.AreEqual(-1, eRepl.Index);
 
             // Remove key
             events.Clear();
@@ -366,7 +366,7 @@ namespace Klopoff.TrackableState.Tests
             Assert.AreEqual("Dict[en]", eRem.Path);
             Assert.AreEqual("en", eRem.Key);
             Assert.AreEqual("Hello2", eRem.OldValue);
-            Assert.IsNull(eRem.Index);
+            Assert.AreEqual(-1, eRem.Index);
 
             // Clear
             events.Clear();

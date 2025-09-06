@@ -29,56 +29,34 @@ namespace Klopoff.TrackableState
 
     public sealed class ChangeEventArgs : EventArgs
     {
-        private readonly string _path;
         private readonly object _oldValue;
         private readonly object _newValue;
-        
+
+        public string Path => BuildPathSlow();
         public PathSegmentType SegmentType { get; }
         public ChangeKind Kind { get; }
         public string MemberName { get; }
-
-        public object OldValue
-        {
-            get
-            {
-                ChangeEventArgs iter = this;
-                
-                while (iter != null)
-                {
-                    iter = iter.Inner;
-
-                    if (iter?.OldValue != null)
-                    {
-                        return iter.OldValue;
-                    }
-                }
-                
-                return _oldValue;
-            }
-        }
-        public object NewValue
-        {
-            get
-            {
-                ChangeEventArgs iter = this;
-                
-                while (iter != null)
-                {
-                    iter = iter.Inner;
-
-                    if (iter?.NewValue != null)
-                    {
-                        return iter.NewValue;
-                    }
-                }
-                
-                return _newValue;
-            }
-        }
-        public int? Index { get; }
+        public object OldValue => Leaf._oldValue;
+        public object NewValue => Leaf._newValue;
+        public int Index { get; }
         public object Key { get; }
         public ChangeEventArgs Inner { get; }
-        public string Path => _path;
+        public ChangeEventArgs Leaf
+        {
+            get
+            {
+                ChangeEventArgs iter = this;
+                ChangeEventArgs last = this;
+                
+                while (iter != null)
+                {
+                    last = iter;
+                    iter = iter.Inner;
+                }
+
+                return last;
+            }
+        }
         
         public ChangeEventArgs(
             PathSegmentType segmentType,
@@ -86,7 +64,7 @@ namespace Klopoff.TrackableState
             string memberName,
             object oldValue = null,
             object newValue = null,
-            int? index = null,
+            int index = -1,
             object key = null,
             ChangeEventArgs inner = null)
         {
@@ -97,7 +75,6 @@ namespace Klopoff.TrackableState
             Key = key;
             Inner = inner;
             
-            _path = BuildPath();
             _oldValue = oldValue;
             _newValue = newValue;
         }
@@ -119,11 +96,11 @@ namespace Klopoff.TrackableState
         public static ChangeEventArgs SetClear(string setName)
             => new(PathSegmentType.Set, ChangeKind.CollectionClear, setName);
         public static ChangeEventArgs DictAdd(string dictName, object key, object newValue)
-            => new(PathSegmentType.Dictionary, ChangeKind.CollectionAdd, dictName, null, newValue, null, key);
+            => new(PathSegmentType.Dictionary, ChangeKind.CollectionAdd, dictName, null, newValue, -1, key);
         public static ChangeEventArgs DictRemove(string dictName, object key, object oldValue)
-            => new(PathSegmentType.Dictionary, ChangeKind.CollectionRemove, dictName, oldValue, null, null, key);
+            => new(PathSegmentType.Dictionary, ChangeKind.CollectionRemove, dictName, oldValue, null, -1, key);
         public static ChangeEventArgs DictReplace(string dictName, object key, object oldValue, object newValue)
-            => new(PathSegmentType.Dictionary, ChangeKind.CollectionReplace, dictName, oldValue, newValue, null, key);
+            => new(PathSegmentType.Dictionary, ChangeKind.CollectionReplace, dictName, oldValue, newValue, -1, key);
         public static ChangeEventArgs DictClear(string dictName)
             => new(PathSegmentType.Dictionary, ChangeKind.CollectionClear, dictName);
         public static ChangeEventArgs ChildProperty(string childPropertyName, ChangeEventArgs inner)
@@ -135,7 +112,7 @@ namespace Klopoff.TrackableState
         public static ChangeEventArgs ChildOfDict(string dictName, object key, ChangeEventArgs inner)
             => new(PathSegmentType.Dictionary, ChangeKind.ChildChange, dictName, key: key, inner: inner);
 
-        private string BuildPath()
+        private string BuildPathSlow()
         {
             string thisSeg = SegmentType switch
             {
