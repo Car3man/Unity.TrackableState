@@ -28,7 +28,7 @@ Core ideas:
 
 - Unity Package Manager:
   - Add package from git URL (Package Manager → + → Add package from git URL…)
-  - https://github.com/Car3man/Unity.TrackableState.git?path=UnityProject/Packages/com.klopoff.trackable-state
+  - https://github.com/Car3man/Unity.TrackableState.git?path=src/Unity.TrackableState/Packages/com.klopoff.trackable-state
 - or embed the package into Packages/ or as a local package
 
 ## Quick start
