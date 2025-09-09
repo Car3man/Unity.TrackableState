@@ -31,7 +31,7 @@ namespace Klopoff.TrackableState.TrackablePerformance
         private SampleRoot _plain;
         private TrackableSampleRoot _trackable;
 
-        private int _eventCounter;
+        private static int _eventCounter;
 
         [GlobalSetup]
         public void GlobalSetup()
@@ -45,7 +45,7 @@ namespace Klopoff.TrackableState.TrackablePerformance
             };
             _trackable = _plain.AsTrackable();
 
-            ((ITrackable)_trackable).Changed += (_, _) => _eventCounter++;
+            ((ITrackable)_trackable).Changed += static (_, _) => _eventCounter++;
         }
 
         [IterationSetup]
