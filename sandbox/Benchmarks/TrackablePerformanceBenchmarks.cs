@@ -17,18 +17,6 @@ public class SampleRoot
     public virtual IList<string> Tags { get; set; }
 }
 
-public class SampleInnerPlain
-{
-    public string Description { get; set; }
-}
-public class SampleRootPlain
-{
-    public string Name { get; set; }
-    public int Age { get; set; }
-    public SampleInnerPlain Inner { get; set; }
-    public IList<string> Tags { get; set; }
-}
-
 namespace Klopoff.TrackableState.TrackablePerformance
 {
     [SimpleJob(RuntimeMoniker.Net90, launchCount: 1, warmupCount: 3, iterationCount: 12)]
@@ -36,13 +24,12 @@ namespace Klopoff.TrackableState.TrackablePerformance
     [ThreadingDiagnoser]
     public class TrackablePerformanceBenchmarks
     {
-        [Params(100, 1000, 10000, 100000)]
-        public int N;
-
+        private const int N = 1_000_000;
+        
         private string[] _values;
 
-        private TrackableSampleRoot _trackableWithEvents;
-        private SampleRootPlain _plain;
+        private SampleRoot _plain;
+        private TrackableSampleRoot _trackable;
 
         private int _eventCounter;
 
@@ -51,16 +38,14 @@ namespace Klopoff.TrackableState.TrackablePerformance
         {
             _values = Enumerable.Range(0, Math.Max(1, N)).Select(i => "v" + i).ToArray();
 
-            _trackableWithEvents = new SampleRoot().AsTrackable();
-            _trackableWithEvents.Tags = new List<string>();
-
-            ((ITrackable)_trackableWithEvents).Changed += (_, _) => _eventCounter++;
-
-            _plain = new SampleRootPlain
+            _plain = new SampleRoot
             {
                 Tags = new List<string>(),
-                Inner = new SampleInnerPlain()
+                Inner = new SampleInner()
             };
+            _trackable = _plain.AsTrackable();
+
+            ((ITrackable)_trackable).Changed += (_, _) => _eventCounter++;
         }
 
         [IterationSetup]
@@ -68,19 +53,19 @@ namespace Klopoff.TrackableState.TrackablePerformance
         {
             _eventCounter = 0;
 
-            _trackableWithEvents.Tags.Clear();
             _plain.Tags.Clear();
+            _trackable.Tags.Clear();
 
-            _trackableWithEvents.Inner = new SampleInner { Description = "init" };
-            _plain.Inner = new SampleInnerPlain { Description = "init" };
+            _plain.Inner = new SampleInner { Description = "init" };
+            _trackable.Inner = new SampleInner { Description = "init" };
 
-            _trackableWithEvents.Name = "N0";
             _plain.Name = "N0";
+            _trackable.Name = "N0";
 
-            _trackableWithEvents.Age = 0;
             _plain.Age = 0;
+            _trackable.Age = 0;
 
-            ((ITrackable)_trackableWithEvents).AcceptChanges();
+            ((ITrackable)_trackable).AcceptChanges();
         }
 
         [Benchmark(Baseline = true, Description = "Plain: property sets (Name/Age)")]
@@ -99,7 +84,7 @@ namespace Klopoff.TrackableState.TrackablePerformance
         [Benchmark(Description = "Trackable: property sets (Name/Age)")]
         public (int age, int nameLen, int ev) Trackable_PropertySets()
         {
-            var root = _trackableWithEvents;
+            var root = _trackable;
             int nameLen = 0;
             for (int i = 0; i < N; i++)
             {
@@ -126,7 +111,7 @@ namespace Klopoff.TrackableState.TrackablePerformance
         [Benchmark(Description = "Trackable: Tags.Add N")]
         public (int count, int ev, int totalLen) Trackable_List_Add()
         {
-            var tags = _trackableWithEvents.Tags;
+            var tags = _trackable.Tags;
             int len = 0;
             for (int i = 0; i < N; i++)
             {
@@ -152,7 +137,7 @@ namespace Klopoff.TrackableState.TrackablePerformance
         [Benchmark(Description = "Trackable: Inner.Description sets")]
         public (int len, int ev) Trackable_Child_PropertySets()
         {
-            var root = _trackableWithEvents;
+            var root = _trackable;
             int len = 0;
             for (int i = 0; i < N; i++)
             {
