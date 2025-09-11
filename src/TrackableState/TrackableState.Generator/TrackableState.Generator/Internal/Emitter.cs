@@ -55,7 +55,7 @@ internal static class Emitter
         {
             w.Block($"public sealed class {trackableName} : {baseName}, ITrackable", () =>
             {
-                w.WriteLine("private readonly Dictionary<ITrackable, string> _children;");
+                w.WriteLine("private readonly Dictionary<ITrackable, MemberInfo> _children;");
                 w.BlankLine();
                 w.WriteLine("public event ChangeEventHandler Changed;");
                 w.Block("public bool IsDirty", () =>
@@ -73,10 +73,18 @@ internal static class Emitter
                     EmitPropertyOverride(w, p);
                 }
                 
+                // prop id const
+                for (int i = 0; i < propsVirtual.Length; i++)
+                {
+                    IPropertySymbol p = propsVirtual[i];
+                    EmitPropertyIdConst(w, p, i + 1);
+                }
+                w.BlankLine();
+                
                 // ctors
                 w.Block($"public {trackableName}()", () =>
                 {
-                    w.WriteLine("_children = new Dictionary<ITrackable, string>();");
+                    w.WriteLine("_children = new Dictionary<ITrackable, MemberInfo>();");
                     w.BlankLine();
                     w.WriteLine("IsDirty = false;");
                 });
@@ -84,7 +92,7 @@ internal static class Emitter
                 
                 w.Block($"public {trackableName}({baseName} source)", () =>
                 {
-                    w.WriteLine("_children = new Dictionary<ITrackable, string>();");
+                    w.WriteLine("_children = new Dictionary<ITrackable, MemberInfo>();");
                     w.BlankLine();
                     w.WriteLine("IsDirty = false;");
                     w.BlankLine();
@@ -127,9 +135,9 @@ internal static class Emitter
                 
                 // child attach
                 w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                w.Block("public void AttachChild(string memberName, ITrackable child)", () =>
+                w.Block("public void AttachChild(in MemberInfo member, ITrackable child)", () =>
                 {
-                    w.Block("if (_children.TryAdd(child, memberName))", () =>
+                    w.Block("if (_children.TryAdd(child, member))", () =>
                     {
                         w.WriteLine("child.Changed += OnChange;");
                     });
@@ -182,6 +190,11 @@ internal static class Emitter
 
         spc.AddSource(hintName: $"{trackableName}.g.cs", source: w.ToString());
     }
+    
+    private static void EmitPropertyIdConst(CodeWriter w, IPropertySymbol p, int id)
+    {
+        w.WriteLine($"internal const int {p.Name}Id = {id};");
+    }
 
     private static void EmitPropertyOverride(CodeWriter w, IPropertySymbol p)
     {
@@ -210,10 +223,10 @@ internal static class Emitter
                         w.WriteLine($"base.{name} = newValue;");
                         w.Block("if (newValue is ITrackable nt)", () =>
                         {
-                            w.WriteLine($"AttachChild(\"{name}\", nt);");
+                            w.WriteLine($"AttachChild(new MemberInfo({name}Id, \"{name}\"), nt);");
                         });
                         w.WriteLine("IsDirty = true;");
-                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(\"{name}\", Payload24.From(oldValue), Payload24.From(value)));");
+                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(new MemberInfo({name}Id, \"{name}\"), Payload24.From(oldValue), Payload24.From(value)));");
                     });
                 });
             });
@@ -240,10 +253,10 @@ internal static class Emitter
                         w.WriteLine($"base.{name} = newValue;");
                         w.Block("if (newValue is ITrackable nt)", () =>
                         {
-                            w.WriteLine($"AttachChild(\"{name}\", nt);");
+                            w.WriteLine($"AttachChild(new MemberInfo({name}Id, \"{name}\"), nt);");
                         });
                         w.WriteLine("IsDirty = true;");
-                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(\"{name}\", Payload24.From(oldValue), Payload24.From(value)));");
+                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(new MemberInfo({name}Id, \"{name}\"), Payload24.From(oldValue), Payload24.From(value)));");
                     });
                 });
             });
@@ -262,11 +275,13 @@ internal static class Emitter
                         w.WriteLine($"{typeName} oldValue = base.{name};");
                         w.WriteLine($"base.{name} = value;");
                         w.WriteLine("IsDirty = true;");
-                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(\"{name}\", Payload24.From(oldValue), Payload24.From(value)));");
+                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(new MemberInfo({name}Id, \"{name}\"), Payload24.From(oldValue), Payload24.From(value)));");
                     });
                 });
             });
         }
+        
+        w.BlankLine();
     }
 
     private static void EmitAssignmentForConstructor(CodeWriter w, IPropertySymbol p, string srcVar)
@@ -293,7 +308,7 @@ internal static class Emitter
         {
             w.Block($"if (base.{p.Name} is ITrackable t_{p.Name})", () =>
             {
-                w.WriteLine($"AttachChild(\"{p.Name}\", t_{p.Name});");
+                w.WriteLine($"AttachChild(new MemberInfo({p.Name}Id, \"{p.Name}\"), t_{p.Name});");
             });
         }
     }

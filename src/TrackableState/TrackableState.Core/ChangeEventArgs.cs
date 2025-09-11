@@ -32,7 +32,7 @@ namespace Klopoff.TrackableState.Core
                     switch (segment.segmentType)
                     {
                         case SegmentType.Property:
-                            sb.Append(segment.memberName);
+                            sb.Append(segment.memberInfo.Name);
                             break;
                         case SegmentType.List:
                             if (segment.changeKind != ChangeKind.CollectionClear)
@@ -77,94 +77,94 @@ namespace Klopoff.TrackableState.Core
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ChangeEventArgs PropertySet(string memberName, in Payload24 oldValue, in Payload24 newValue)
+        public static ChangeEventArgs PropertySet(in MemberInfo member, in Payload24 oldValue, in Payload24 newValue)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Property, ChangeKind.PropertySet, memberName));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Property, ChangeKind.PropertySet, member));
             return new ChangeEventArgs(path, oldValue, newValue, -1, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs ListAdd(in Payload24 newValue, int index)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.List, ChangeKind.CollectionAdd, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.List, ChangeKind.CollectionAdd));
             return new ChangeEventArgs(path, default, newValue, index, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs ListRemove(in Payload24 oldValue, int index)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.List, ChangeKind.CollectionRemove, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.List, ChangeKind.CollectionRemove));
             return new ChangeEventArgs(path, oldValue, default, index, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs ListReplace(in Payload24 oldValue, in Payload24 newValue, int index)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.List, ChangeKind.CollectionReplace, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.List, ChangeKind.CollectionReplace));
             return new ChangeEventArgs(path, oldValue, newValue, index, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs ListClear()
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.List, ChangeKind.CollectionClear, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.List, ChangeKind.CollectionClear));
             return new ChangeEventArgs(path , default, default, -1, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs SetAdd(in Payload24 newValue)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Set, ChangeKind.CollectionAdd, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Set, ChangeKind.CollectionAdd));
             return new ChangeEventArgs(path, default, newValue, -1, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs SetRemove(in Payload24 oldValue)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Set, ChangeKind.CollectionRemove, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Set, ChangeKind.CollectionRemove));
             return new ChangeEventArgs(path, oldValue, default, -1, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs SetClear()
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Set, ChangeKind.CollectionClear, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Set, ChangeKind.CollectionClear));
             return new ChangeEventArgs(path , default, default, -1, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs DictionaryAdd(in Payload24 newValue, in Payload24 key)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Dictionary, ChangeKind.CollectionAdd, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Dictionary, ChangeKind.CollectionAdd));
             return new ChangeEventArgs(path, default, newValue, -1, key);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs DictionaryRemove(in Payload24 oldValue, in Payload24 key)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Dictionary, ChangeKind.CollectionRemove, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Dictionary, ChangeKind.CollectionRemove));
             return new ChangeEventArgs(path, oldValue, default, -1, key);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs DictionaryReplace(in Payload24 oldValue, in Payload24 newValue, in Payload24 key)
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Dictionary, ChangeKind.CollectionReplace, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Dictionary, ChangeKind.CollectionReplace));
             return new ChangeEventArgs(path, oldValue, newValue, -1, key);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChangeEventArgs DictionaryClear()
         {
-            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Dictionary, ChangeKind.CollectionClear, String.Empty));
+            FixedList8<PathSegment> path = new FixedList8<PathSegment>(new PathSegment(SegmentType.Dictionary, ChangeKind.CollectionClear));
             return new ChangeEventArgs(path , default, default, -1, default);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ChangeEventArgs ChildProperty(in ChangeEventArgs childEvent, string memberName)
+        public static ChangeEventArgs ChildProperty(in ChangeEventArgs childEvent, in MemberInfo member)
         {
             FixedList8<PathSegment> childPath = childEvent.path;
-            childPath.Insert(0, new PathSegment(SegmentType.Property, ChangeKind.ChildChange, memberName));
+            childPath.Insert(0, new PathSegment(SegmentType.Property, ChangeKind.ChildChange, member));
             return new ChangeEventArgs(childPath, childEvent.oldValue, childEvent.newValue, childEvent.index, childEvent.key);
         }
 
@@ -172,7 +172,7 @@ namespace Klopoff.TrackableState.Core
         public static ChangeEventArgs ChildOfList(in ChangeEventArgs childEvent, int index)
         {
             FixedList8<PathSegment> childPath = childEvent.path;
-            childPath.Insert(0, new PathSegment(SegmentType.List, ChangeKind.ChildChange, string.Empty));
+            childPath.Insert(0, new PathSegment(SegmentType.List, ChangeKind.ChildChange));
             return new ChangeEventArgs(childPath, childEvent.oldValue, childEvent.newValue, index, childEvent.key);
         }
 
@@ -180,7 +180,7 @@ namespace Klopoff.TrackableState.Core
         public static ChangeEventArgs ChildOfSet(in ChangeEventArgs childEvent)
         {
             FixedList8<PathSegment> childPath = childEvent.path;
-            childPath.Insert(0, new PathSegment(SegmentType.Set, ChangeKind.ChildChange, string.Empty));
+            childPath.Insert(0, new PathSegment(SegmentType.Set, ChangeKind.ChildChange));
             return new ChangeEventArgs(childPath, childEvent.oldValue, childEvent.newValue, childEvent.index, childEvent.key);
         }
 
@@ -188,7 +188,7 @@ namespace Klopoff.TrackableState.Core
         public static ChangeEventArgs ChildOfDictionary(in ChangeEventArgs childEvent, in Payload24 key)
         {
             FixedList8<PathSegment> childPath = childEvent.path;
-            childPath.Insert(0, new PathSegment(SegmentType.Dictionary, ChangeKind.ChildChange, string.Empty));
+            childPath.Insert(0, new PathSegment(SegmentType.Dictionary, ChangeKind.ChildChange));
             return new ChangeEventArgs(childPath, childEvent.oldValue, childEvent.newValue, childEvent.index, key != default ? key : childEvent.key);
         }
     }

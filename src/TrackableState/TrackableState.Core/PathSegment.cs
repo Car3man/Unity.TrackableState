@@ -1,5 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace Klopoff.TrackableState.Core
 {
@@ -8,14 +7,27 @@ namespace Klopoff.TrackableState.Core
     {
         public SegmentType segmentType;
         public ChangeKind changeKind;
-        public string memberName;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PathSegment(SegmentType segmentType, ChangeKind changeKind, string memberName)
+        public MemberInfo memberInfo;
+        
+        public PathSegment(
+            SegmentType segmentType,
+            ChangeKind changeKind
+        )
         {
             this.segmentType = segmentType;
             this.changeKind = changeKind;
-            this.memberName = memberName;
+            memberInfo = default;
+        }
+        
+        public PathSegment(
+            SegmentType segmentType,
+            ChangeKind changeKind,
+            MemberInfo memberInfo
+            )
+        {
+            this.segmentType = segmentType;
+            this.changeKind = changeKind;
+            this.memberInfo = memberInfo;
         }
     }
 }
