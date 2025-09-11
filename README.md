@@ -1,6 +1,6 @@
 # Unity Trackable State
 
-Small Unity package that turns your POCO classes into trackable objects. It observes property and collection changes, and provides a single event stream with detailed path, change kind, old/new values, and optional index/key info.
+Small Unity package that turns your POCO classes into trackable objects. It observes property and collection changes, and provides a single event stream with detailed path, old/new values, and optional index/key info.
 
 Core ideas:
 - Mark your POCOs with [Trackable] and call AsTrackable() to get a proxy that implements ITrackable.
@@ -88,6 +88,6 @@ public class Sample : MonoBehaviour
 ```
 
 Requirements:
-- Mark classes with [Trackable] and make properties virtual so the proxy can intercept setters.
-- Wrap root with AsTrackable() and use the proxy instance going forward.
-- The class must not be sealed
+- Class must not be sealed
+- Mark class with [Trackable] and make properties virtual so the proxy can intercept setters
+- Call AsTrackable() method on class and use the proxy instance going forward
