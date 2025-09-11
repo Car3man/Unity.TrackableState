@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace Klopoff.TrackableState.Core
 {
     [StructLayout(LayoutKind.Sequential)]
-    public struct FixedList8<T> : IEnumerable<T>
+    public struct FixedList8<T> : IEnumerable<T>, IEquatable<FixedList8<T>>
     {
         private FixedArray8<T> _items;
         private byte _count;
@@ -143,6 +143,46 @@ namespace Klopoff.TrackableState.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlySpan<T> AsReadOnlySpan() => AsSpan();
+        
+        public bool Equals(FixedList8<T> other)
+        {
+            if (_count != other._count)
+            {
+                return false;
+            }
+            
+            EqualityComparer<T> cmp = EqualityComparer<T>.Default;
+            for (int i = 0; i < _count; i++)
+            {
+                if (cmp.Equals(_items[i], _items[i]))
+                {
+                    continue;
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+
+        public override bool Equals(object obj) => obj is FixedList8<T> other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            HashCode hash = new HashCode();
+            hash.Add(_count);
+
+            for (int i = 0; i < _count; i++)
+            {
+                hash.Add(_items[i]);
+            }
+
+            return hash.ToHashCode();
+        }
+        
+        public static bool operator ==(FixedList8<T> left, FixedList8<T> right) => left.Equals(right);
+        
+        public static bool operator !=(FixedList8<T> left, FixedList8<T> right) => !left.Equals(right);
         
         public struct Enumerator : IEnumerator<T>
         {

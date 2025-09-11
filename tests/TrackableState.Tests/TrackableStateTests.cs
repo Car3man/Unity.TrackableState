@@ -1,5 +1,6 @@
 ﻿using Klopoff.TrackableState.Core;
 using NUnit.Framework;
+using TrackableState.Packer;
 
 namespace TrackableState.Tests
 {
@@ -33,7 +34,6 @@ namespace TrackableState.Tests
             root.Changed += OnChange;
             events = localEvents;
             return root;
-            
             void OnChange(object _, in ChangeEventArgs e) => localEvents.Add(e);
         }
 
@@ -739,6 +739,92 @@ namespace TrackableState.Tests
                     Assert.AreEqual(snapshot.Dict[k], trackable.Dict[k], $"Trackable.Dict value changed for key {k}");
                 }
             }
+        }
+        
+        private (SampleRoot root, ChangeLogBuffer buffer) NewRootWithBuffer(SampleRoot plain)
+        {
+            ChangeLogBuffer buffer = new ChangeLogBuffer();
+            TrackableSampleRoot root = plain.AsTrackable();
+            root.Changed += OnChange;
+            return (root, buffer);
+            void OnChange(object _, in ChangeEventArgs e) => buffer.Add(e);
+        }
+        
+        [Test]
+        public void Pack_Merges_Sequential_Property_Changes_For_Same_Path()
+        {
+            (SampleRoot root, ChangeLogBuffer buffer) = NewRootWithBuffer(new SampleRoot
+            {
+                Name = "0"
+            });
+
+            root.Name = "A";
+            root.Name = "B";
+            root.Name = "C";
+
+            Assert.AreEqual(3, buffer.Snapshot.Count, "Precondition: expected three raw change events before packing.");
+            
+            buffer.Pack();
+            
+            IReadOnlyList<ChangeEventArgs> packed = buffer.Snapshot;
+            Assert.AreEqual(1, packed.Count, "All Name changes without conflicts should merge into one event.");
+
+            ChangeEventArgs e = packed[0];
+            Assert.AreEqual("Name", e.PathString);
+            Assert.AreEqual("0", e.oldValue.Get<string>(), "Merged oldValue must come from the initial state.");
+            Assert.AreEqual("C", e.newValue.Get<string>(), "Merged newValue must come from the last event.");
+            Assert.AreEqual(ChangeKind.PropertySet, e.path[0].changeKind);
+        }
+
+        [Test]
+        public void Pack_Does_Not_Merge_When_Descendant_Change_Introduces_Conflict()
+        {
+            (SampleRoot root, ChangeLogBuffer buffer) = NewRootWithBuffer(new SampleRoot());
+
+            root.Inner = new SampleInner { Description = "X" };
+            root.Inner.Description = "Y";
+            root.Inner = new SampleInner { Description = "Z" };
+
+            Assert.AreEqual(3, buffer.Snapshot.Count, "Precondition: three events expected.");
+            
+            buffer.Pack();
+            
+            IReadOnlyList<ChangeEventArgs> packed = buffer.Snapshot;
+            Assert.AreEqual(3, packed.Count, "Conflict (ancestor/descendant) between first and last 'Inner' events should prevent merging.");
+            Assert.AreEqual("Inner", packed[0].PathString);
+            Assert.AreEqual("Inner.Description", packed[1].PathString);
+            Assert.AreEqual("Inner", packed[2].PathString);
+        }
+
+        [Test]
+        public void Pack_Merges_Interleaved_Unrelated_Paths_Independently()
+        {
+            (SampleRoot root, ChangeLogBuffer buffer) = NewRootWithBuffer(new SampleRoot
+            {
+                Name = "0",
+                Age = 0
+            });
+
+            root.Name = "N1";
+            root.Age  = 1;
+            root.Name = "N2";
+            root.Age  = 2;
+            root.Name = "N3";
+
+            Assert.AreEqual(5, buffer.Snapshot.Count, "Precondition failed: expected 5 raw events.");
+            
+            buffer.Pack();
+            
+            IReadOnlyList<ChangeEventArgs> packed = buffer.Snapshot;
+            Assert.AreEqual(2, packed.Count, "Expected two merged events (Name, Age).");
+
+            ChangeEventArgs nameEvent = packed.First(e => e.PathString == "Name");
+            Assert.AreEqual("0", nameEvent.oldValue.Get<string>());
+            Assert.AreEqual("N3", nameEvent.newValue.Get<string>());
+
+            ChangeEventArgs ageEvent = packed.First(e => e.PathString == "Age");
+            Assert.AreEqual(0, ageEvent.oldValue.Get<int>(), "Initial default int oldValue should be 0.");
+            Assert.AreEqual(2, ageEvent.newValue.Get<int>());
         }
     }
 }

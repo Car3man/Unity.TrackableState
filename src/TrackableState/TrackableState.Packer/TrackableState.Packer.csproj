@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>9</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\TrackableState.Core\TrackableState.Core.csproj" />
+    </ItemGroup>
+
+    <Target Name="CopyAfterBuild" AfterTargets="Build">
+        <ItemGroup>
+            <_FilesToCopy Include="$(OutputPath)**\$(AssemblyName).dll"/>
+            <_FilesToCopy Include="$(OutputPath)**\$(AssemblyName).pdb"/>
+        </ItemGroup>
+        <Copy SourceFiles="@(_FilesToCopy)" DestinationFolder="$(OutputPath)..\..\..\..\..\Unity.TrackableState\Packages\com.klopoff.trackable-state\Plugins"/>
+    </Target>
+
+</Project>
