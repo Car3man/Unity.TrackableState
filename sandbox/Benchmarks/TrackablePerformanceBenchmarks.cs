@@ -1,4 +1,5 @@
-﻿using BenchmarkDotNet.Attributes;
+﻿using System.Runtime.CompilerServices;
+using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Klopoff.TrackableState.Core;
 
@@ -30,8 +31,7 @@ namespace Klopoff.TrackableState.TrackablePerformance
 
         private SampleRoot _plain;
         private TrackableSampleRoot _trackable;
-
-        private static int _eventCounter;
+        private static int _counter;
 
         [GlobalSetup]
         public void GlobalSetup()
@@ -43,108 +43,100 @@ namespace Klopoff.TrackableState.TrackablePerformance
                 Tags = new List<string>(),
                 Inner = new SampleInner()
             };
+            
             _trackable = _plain.AsTrackable();
+            _trackable.Changed += OnChange;
 
-            ((ITrackable)_trackable).Changed += static (_, _) => _eventCounter++;
+            static void OnChange(object o, in ChangeEventArgs changeEventArgs) => _counter++;
         }
 
         [IterationSetup]
         public void IterationSetup()
         {
-            _eventCounter = 0;
-
+            _plain.Name = "N0";
+            _plain.Age = 0;
+            _plain.Inner = new SampleInner { Description = "init" };
             _plain.Tags.Clear();
+
+            _trackable.Name = "N0";
+            _trackable.Age = 0;
+            _trackable.Inner = new SampleInner { Description = "init" };
             _trackable.Tags.Clear();
 
-            _plain.Inner = new SampleInner { Description = "init" };
-            _trackable.Inner = new SampleInner { Description = "init" };
-
-            _plain.Name = "N0";
-            _trackable.Name = "N0";
-
-            _plain.Age = 0;
-            _trackable.Age = 0;
-
-            ((ITrackable)_trackable).AcceptChanges();
+            _trackable.AcceptChanges();
+            _counter = 0;
         }
 
-        [Benchmark(Baseline = true, Description = "Plain: property sets (Name/Age)")]
-        public (int age, int nameLen) Plain_PropertySets()
+        [Benchmark(Baseline = true, Description = "Plain: Age sets (value-type)")]
+        public void Plain_AgePropertySets()
         {
-            int nameLen = 0;
+            for (int i = 0; i < N; i++)
+            {
+                _plain.Age = i;
+            }
+        }
+
+        [Benchmark(Description = "Trackable: Age sets (value-type)")]
+        public void Trackable_AgePropertySets()
+        {
+            for (int i = 0; i < N; i++)
+            {
+                _trackable.Age = i;
+            }
+        }
+        
+        [Benchmark(Description = "Plain: Name sets")]
+        public void Plain_NamePropertySets()
+        {
             for (int i = 0; i < N; i++)
             {
                 _plain.Name = _values[i % _values.Length];
-                _plain.Age = i;
-                nameLen += _plain.Name.Length;
             }
-            return (_plain.Age, nameLen);
         }
 
-        [Benchmark(Description = "Trackable: property sets (Name/Age)")]
-        public (int age, int nameLen, int ev) Trackable_PropertySets()
+        [Benchmark(Description = "Trackable: Name sets")]
+        public void Trackable_NamePropertySets()
         {
-            var root = _trackable;
-            int nameLen = 0;
             for (int i = 0; i < N; i++)
             {
-                root.Name = _values[i % _values.Length];
-                root.Age = i;
-                nameLen += root.Name.Length;
+                _trackable.Name = _values[i % _values.Length];
             }
-            return (root.Age, nameLen, _eventCounter);
         }
 
         [Benchmark(Description = "Plain: Tags.Add N")]
-        public (int count, int totalLen) Plain_List_Add()
+        public void Plain_List_Add()
         {
-            int len = 0;
             for (int i = 0; i < N; i++)
             {
-                string v = _values[i % _values.Length];
-                _plain.Tags.Add(v);
-                len += v.Length;
+                _plain.Tags.Add(_values[i % _values.Length]);
             }
-            return (_plain.Tags.Count, len);
         }
 
         [Benchmark(Description = "Trackable: Tags.Add N")]
-        public (int count, int ev, int totalLen) Trackable_List_Add()
+        public void Trackable_List_Add()
         {
-            var tags = _trackable.Tags;
-            int len = 0;
             for (int i = 0; i < N; i++)
             {
-                string v = _values[i % _values.Length];
-                tags.Add(v);
-                len += v.Length;
+                _trackable.Tags.Add(_values[i % _values.Length]);
             }
-            return (tags.Count, _eventCounter, len);
         }
         
         [Benchmark(Description = "Plain: Inner.Description sets")]
-        public int Plain_Child_PropertySets()
+        public void Plain_Child_PropertySets()
         {
-            int len = 0;
             for (int i = 0; i < N; i++)
             {
                 _plain.Inner.Description = _values[i % _values.Length];
-                len += _plain.Inner.Description.Length;
             }
-            return len;
         }
 
-        [Benchmark(Description = "Trackable: Inner.Description sets")]
-        public (int len, int ev) Trackable_Child_PropertySets()
+        [Benchmark(Description = "Trackable: Inner.Description set")]
+        public void Trackable_Child_PropertySets()
         {
-            var root = _trackable;
-            int len = 0;
             for (int i = 0; i < N; i++)
             {
-                root.Inner.Description = _values[i % _values.Length];
-                len += root.Inner.Description.Length;
+                _trackable.Inner.Description = _values[i % _values.Length];
             }
-            return (len, _eventCounter);
         }
     }
 }

@@ -1,39 +1,38 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Klopoff.TrackableState.Core.Pools;
 
 namespace Klopoff.TrackableState.Core
 {
-    public class TrackableSet<T> : ISet<T>, ITrackable
+    public sealed class TrackableSet<T> : ISet<T>, ITrackable
     {
-        internal readonly ISet<T> Inner;
-        
+        private readonly ISet<T> _inner;
         private readonly Func<T, T> _wrapper;
         private readonly Func<T, T> _unwrapper;
         
+        public event ChangeEventHandler Changed;
         public bool IsDirty { get; private set; }
-        public event EventHandler<ChangeEventArgs> Changed;
         
         public TrackableSet(ISet<T> inner, Func<T, T> wrapper, Func<T, T> unwrapper)
         {
-            Inner = inner;
-            
+            _inner = inner;
             _wrapper = wrapper ?? (x => x);
             _unwrapper = unwrapper ?? (x => x);
 
             using var pooled = HashSetPool<T>.GetPooled(out var set);
             
-            foreach (T item in Inner)
+            foreach (T item in _inner)
             {
                 set.Add(_wrapper(item));
             }
             
-            Inner.Clear();
+            _inner.Clear();
             
             foreach (T item in set)
             {
-                Inner.Add(item);
+                _inner.Add(item);
             }
             
             HookAll();
@@ -43,7 +42,7 @@ namespace Klopoff.TrackableState.Core
         {
             HashSet<T> normalized = new HashSet<T>();
             
-            foreach (T item in Inner)
+            foreach (T item in _inner)
             {
                 normalized.Add(_unwrapper(item));
             }
@@ -53,7 +52,7 @@ namespace Klopoff.TrackableState.Core
 
         public void AcceptChanges()
         {
-            foreach (T it in Inner)
+            foreach (T it in _inner)
             {
                 if (it is ITrackable t)
                 {
@@ -63,51 +62,55 @@ namespace Klopoff.TrackableState.Core
             
             IsDirty = false;
         }
-
+        
         private void HookAll()
         {
-            foreach (T it in Inner)
+            foreach (T it in _inner)
             {
                 Hook(it);
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Hook(T item)
         {
             if (item is ITrackable t)
             {
-                t.Changed += ChildChanged;
+                t.Changed += OnChange;
             }
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Unhook(T item)
         {
             if (item is ITrackable t)
             {
-                t.Changed -= ChildChanged;
+                t.Changed -= OnChange;
             }
         }
 
-        private void ChildChanged(object sender, ChangeEventArgs e)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void OnChange(object sender, in ChangeEventArgs args)
         {
             IsDirty = true;
-            Changed?.Invoke(this, ChangeEventArgs.ChildOfSet(string.Empty, e));
+            Changed?.Invoke(this, ChangeEventArgs.ChildOfSet(args));
         }
 
         #region ISet<T>
         
-        public int Count => Inner.Count;
+        public int Count => _inner.Count;
         
-        public bool IsReadOnly => Inner.IsReadOnly;
+        public bool IsReadOnly => _inner.IsReadOnly;
 
         public bool Add(T item)
         {
-            T wrappedValue = _wrapper(item);
-            bool added = Inner.Add(wrappedValue);
+            T newItem = _wrapper(item);
+            bool added = _inner.Add(newItem);
             if (added)
             {
-                Hook(wrappedValue);
+                Hook(newItem);
                 IsDirty = true;
-                Changed?.Invoke(this, ChangeEventArgs.SetAdd(string.Empty, item));
+                Changed?.Invoke(this, ChangeEventArgs.SetAdd(newValue: Payload24.From(newItem)));
             }
             return added;
         }
@@ -144,7 +147,7 @@ namespace Klopoff.TrackableState.Core
                 }
             }
             
-            foreach (T item in Inner)
+            foreach (T item in _inner)
             {
                 if (!toKeep.Contains(item))
                 {
@@ -155,17 +158,17 @@ namespace Klopoff.TrackableState.Core
             ListPool<T>.Release(toKeep);
         }
 
-        public bool IsProperSubsetOf(IEnumerable<T> other) => Inner.IsProperSubsetOf(other);
+        public bool IsProperSubsetOf(IEnumerable<T> other) => _inner.IsProperSubsetOf(other);
         
-        public bool IsProperSupersetOf(IEnumerable<T> other) => Inner.IsProperSupersetOf(other);
+        public bool IsProperSupersetOf(IEnumerable<T> other) => _inner.IsProperSupersetOf(other);
         
-        public bool IsSubsetOf(IEnumerable<T> other) => Inner.IsSubsetOf(other);
+        public bool IsSubsetOf(IEnumerable<T> other) => _inner.IsSubsetOf(other);
         
-        public bool IsSupersetOf(IEnumerable<T> other) => Inner.IsSupersetOf(other);
+        public bool IsSupersetOf(IEnumerable<T> other) => _inner.IsSupersetOf(other);
         
-        public bool Overlaps(IEnumerable<T> other) => Inner.Overlaps(other);
+        public bool Overlaps(IEnumerable<T> other) => _inner.Overlaps(other);
         
-        public bool SetEquals(IEnumerable<T> other) => Inner.SetEquals(other);
+        public bool SetEquals(IEnumerable<T> other) => _inner.SetEquals(other);
 
         public void SymmetricExceptWith(IEnumerable<T> other)
         {
@@ -198,39 +201,39 @@ namespace Klopoff.TrackableState.Core
         
         public void Clear()
         {
-            if (Inner.Count > 0)
+            if (_inner.Count > 0)
             {
                 IsDirty = true;
             }
             
-            foreach (T it in Inner)
+            foreach (T it in _inner)
             {
                 Unhook(it);
             }
 
-            Inner.Clear();
-            Changed?.Invoke(this, ChangeEventArgs.SetClear(string.Empty));
+            _inner.Clear();
+            Changed?.Invoke(this, ChangeEventArgs.SetClear());
         }
 
-        public bool Contains(T item) => Inner.Contains(item);
+        public bool Contains(T item) => _inner.Contains(item);
         
-        public void CopyTo(T[] array, int arrayIndex) => Inner.CopyTo(array, arrayIndex);
+        public void CopyTo(T[] array, int arrayIndex) => _inner.CopyTo(array, arrayIndex);
 
         public bool Remove(T item)
         {
-            if (Inner.Remove(item))
+            if (_inner.Remove(item))
             {
                 Unhook(item);
                 IsDirty = true;
-                Changed?.Invoke(this, ChangeEventArgs.SetRemove(string.Empty, item));
+                Changed?.Invoke(this, ChangeEventArgs.SetRemove(oldValue: Payload24.From(item)));
                 return true;
             }
             return false;
         }
 
-        public IEnumerator<T> GetEnumerator() => Inner.GetEnumerator();
+        public IEnumerator<T> GetEnumerator() => _inner.GetEnumerator();
         
-        IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)Inner).GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)_inner).GetEnumerator();
         
         #endregion
     }

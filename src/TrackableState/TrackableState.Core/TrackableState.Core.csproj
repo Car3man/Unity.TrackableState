@@ -5,6 +5,10 @@
         <RootNamespace>Klopoff.TrackableState.Core</RootNamespace>
         <LangVersion>9</LangVersion>
     </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+    </ItemGroup>
     
     <Target Name="CopyAfterBuild" AfterTargets="Build">
         <ItemGroup>

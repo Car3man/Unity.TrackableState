@@ -1,39 +1,3 @@
-# Unity Trackable State
-
-Small Unity package that turns your POCO classes into trackable objects. It observes property and collection changes, and provides a single event stream with detailed path, change kind, old/new values, and optional index/key info.
-
-Core ideas:
-- Mark your POCOs with [Trackable] and call AsTrackable() to get a proxy that implements ITrackable.
-- Subscribe to ITrackable.Changed to receive detailed change events.
-- Use ITrackable.IsDirty and AcceptChanges() for dirty-state workflows.
-- Works with nested objects and common collection interfaces: IList<T>, ISet<T>, IDictionary<TKey, TValue>.
-
-## Features
-
-- Zero-alloc for most cases
-  - Supports to inline 24 byte structs, larger structs will be boxed
-- Trackable POCOs via attribute + proxy:
-  - [Trackable] on classes
-  - AsTrackable() to create a trackable proxy that implements ITrackable
-- Dirty tracking:
-  - IsDirty reflects if any changes happened since creation or last AcceptChanges()
-  - AcceptChanges() resets IsDirty without suppressing future events
-- Event model:
-  - Single Changed event with ChangeEventArgs capturing:
-    - Full path to changed property/collection item
-    - OldValue and NewValue
-    - Optional Index (for IList) or Key (for IDictionary)
-
-## Installation
-
-- Unity Package Manager:
-  - Add package from git URL (Package Manager → + → Add package from git URL…)
-  - https://github.com/Car3man/Unity.TrackableState.git?path=src/Unity.TrackableState/Packages/com.klopoff.trackable-state
-- or embed the package into Packages/ or as a local package
-
-## Quick start
-
-```csharp
 using System.Collections.Generic;
 using Klopoff.TrackableState.Core;
 using UnityEngine;
@@ -85,9 +49,3 @@ public class Sample : MonoBehaviour
         root.Properties["key3"] = "value3";             // Properties[key3] | old=, new=value3, idx=-1, key=key3
     }
 }
-```
-
-Requirements:
-- Mark classes with [Trackable] and make properties virtual so the proxy can intercept setters.
-- Wrap root with AsTrackable() and use the proxy instance going forward.
-- The class must not be sealed

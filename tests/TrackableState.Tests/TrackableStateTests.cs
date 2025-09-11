@@ -28,11 +28,13 @@ namespace TrackableState.Tests
     {
         private SampleRoot NewRoot(out List<ChangeEventArgs> events)
         {
-            TrackableSampleRoot root = new SampleRoot().AsTrackable();
             List<ChangeEventArgs> localEvents = new List<ChangeEventArgs>();
-            ((ITrackable)root).Changed += (_, e) => localEvents.Add(e);
+            TrackableSampleRoot root = new SampleRoot().AsTrackable();
+            root.Changed += OnChange;
             events = localEvents;
             return root;
+            
+            void OnChange(object _, in ChangeEventArgs e) => localEvents.Add(e);
         }
 
         [Test]
@@ -40,16 +42,16 @@ namespace TrackableState.Tests
         {
             TrackableSampleRoot root = new SampleRoot().AsTrackable();
             Assert.IsInstanceOf<ITrackable>(root);
-
+        
             ITrackable t = root;
             Assert.IsFalse(t.IsDirty, "Freshly created trackable should not be dirty.");
-
+        
             root.Name = "John";
             Assert.IsTrue(t.IsDirty, "Any change should mark object dirty.");
-
+        
             t.AcceptChanges();
             Assert.IsFalse(t.IsDirty, "AcceptChanges should reset IsDirty.");
-
+        
             root.Age = 42;
             Assert.IsTrue(t.IsDirty, "After AcceptChanges, further changes should mark dirty again.");
         }
@@ -61,28 +63,28 @@ namespace TrackableState.Tests
 
             root.Name = "John Doe";
             ChangeEventArgs e1 = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, e1.Kind);
-            Assert.AreEqual("Name", e1.Path);
-            Assert.IsNull(e1.OldValue);
-            Assert.AreEqual("John Doe", e1.NewValue);
-            Assert.AreEqual(-1, e1.Index);
+            Assert.AreEqual(ChangeKind.PropertySet, e1.path[0].changeKind);
+            Assert.AreEqual("Name", e1.PathString);
+            Assert.AreEqual(null, e1.oldValue.Get<string>());
+            Assert.AreEqual("John Doe", e1.newValue.Get<string>());
+            Assert.AreEqual(-1, e1.index);
 
             events.Clear();
             root.Age = 30;
             ChangeEventArgs e2 = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, e2.Kind);
-            Assert.AreEqual("Age", e2.Path);
-            Assert.AreEqual(30, e2.NewValue);
+            Assert.AreEqual(ChangeKind.PropertySet, e2.path[0].changeKind);
+            Assert.AreEqual("Age", e2.PathString);
+            Assert.AreEqual(30, e2.newValue.Get<int>());
         }
-
+        
         [Test]
         public void Setting_Same_Value_DoesNot_Raise_Change()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
-
+        
             root.Name = "X";
             events.Clear();
-
+        
             root.Name = "X";
             Assert.IsEmpty(events, "Setting same value should not raise a change event.");
         }
@@ -91,394 +93,394 @@ namespace TrackableState.Tests
         public void Inner_Assign_And_Child_Property_Change()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
-
+        
             root.Inner = new SampleInner { Description = "A" };
             ChangeEventArgs eSet = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSet.Kind);
-            Assert.AreEqual("Inner", eSet.Path);
-            Assert.IsNotNull(eSet.NewValue);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSet.path[0].changeKind);
+            Assert.AreEqual("Inner", eSet.PathString);
+            Assert.IsNotNull(eSet.newValue.Get<SampleInner>());
+        
             events.Clear();
             root.Inner.Description = "B";
             ChangeEventArgs eChild = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
-            Assert.AreEqual("Inner.Description", eChild.Path);
-            Assert.AreEqual("A", eChild.OldValue);
-            Assert.AreEqual("B", eChild.NewValue);
-            Assert.AreEqual(-1, eChild.Index);
+            Assert.AreEqual(ChangeKind.ChildChange, eChild.path[0].changeKind);
+            Assert.AreEqual("Inner.Description", eChild.PathString);
+            Assert.AreEqual("A", eChild.oldValue.Get<string>());
+            Assert.AreEqual("B", eChild.newValue.Get<string>());
+            Assert.AreEqual(-1, eChild.index);
         }
-
+        
         [Test]
         public void Replacing_Inner_Detaches_Old_And_Attaches_New()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
-
+        
             root.Inner = new SampleInner { Description = "old" };
             events.Clear();
-
+        
             SampleInner oldInner = root.Inner;
             root.Inner = new SampleInner { Description = "new" };
             ChangeEventArgs eSet = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSet.Kind);
-            Assert.AreEqual("Inner", eSet.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSet.path[0].changeKind);
+            Assert.AreEqual("Inner", eSet.PathString);
+        
             events.Clear();
             oldInner.Description = "changed";
             Assert.IsEmpty(events, "Old inner should be detached after replacement.");
-
+        
             events.Clear();
             root.Inner.Description = "changed2";
             ChangeEventArgs eChild = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
-            Assert.AreEqual("Inner.Description", eChild.Path);
+            Assert.AreEqual(ChangeKind.ChildChange, eChild.path[0].changeKind);
+            Assert.AreEqual("Inner.Description", eChild.PathString);
         }
-
+        
         [Test]
         public void IList_Of_Inner_Object_Collection_Operations()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
-
+        
             root.InnerList = new List<SampleInner>
             {
                 new() { Description = "1" },
                 new() { Description = "2" }
             };
             ChangeEventArgs eSetList = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSetList.Kind);
-            Assert.AreEqual("InnerList", eSetList.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSetList.path[0].changeKind);
+            Assert.AreEqual("InnerList", eSetList.PathString);
+        
             events.Clear();
             root.InnerList.Add(new SampleInner { Description = "3" });
             ChangeEventArgs eAdd = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eAdd.Kind);
-            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
-            Assert.AreEqual("InnerList[2]", eAdd.Path);
-            Assert.AreEqual(2, eAdd.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eAdd.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.path[1].changeKind);
+            Assert.AreEqual("InnerList[2]", eAdd.PathString);
+            Assert.AreEqual(2, eAdd.index);
+        
             events.Clear();
             root.InnerList[0].Description = "1'";
             ChangeEventArgs eChild = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
-            Assert.AreEqual(ChangeKind.ChildChange, eChild.Inner.Kind);
-            Assert.AreEqual(ChangeKind.PropertySet, eChild.Inner.Inner.Kind);
-            Assert.AreEqual("InnerList[0].Description", eChild.Path);
-            Assert.AreEqual("1", eChild.OldValue);
-            Assert.AreEqual("1'", eChild.NewValue);
-            Assert.AreEqual(0, eChild.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eChild.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.ChildChange, eChild.path[1].changeKind);
+            Assert.AreEqual(ChangeKind.PropertySet, eChild.path[2].changeKind);
+            Assert.AreEqual("InnerList[0].Description", eChild.PathString);
+            Assert.AreEqual("1", eChild.oldValue.Get<string>());
+            Assert.AreEqual("1'", eChild.newValue.Get<string>());
+            Assert.AreEqual(0, eChild.index);
+        
             events.Clear();
             root.InnerList[1] = new SampleInner { Description = "2'" };
             ChangeEventArgs eRepl = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eRepl.Kind);
-            Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.Inner.Kind);
-            Assert.AreEqual("InnerList[1]", eRepl.Path);
-            Assert.AreEqual(1, eRepl.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eRepl.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.path[1].changeKind);
+            Assert.AreEqual("InnerList[1]", eRepl.PathString);
+            Assert.AreEqual(1, eRepl.index);
+        
             events.Clear();
             root.InnerList.RemoveAt(0);
             ChangeEventArgs eRem = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eRem.Kind);
-            Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
-            Assert.AreEqual("InnerList[0]", eRem.Path);
-            Assert.AreEqual(0, eRem.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eRem.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionRemove, eRem.path[1].changeKind);
+            Assert.AreEqual("InnerList[0]", eRem.PathString);
+            Assert.AreEqual(0, eRem.index);
+        
             events.Clear();
             root.InnerList.Clear();
             ChangeEventArgs eClr = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
-            Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
-            Assert.AreEqual("InnerList", eClr.Path);
-            Assert.AreEqual(-1, eClr.Index);
+            Assert.AreEqual(ChangeKind.ChildChange, eClr.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionClear, eClr.path[1].changeKind);
+            Assert.AreEqual("InnerList", eClr.PathString);
+            Assert.AreEqual(-1, eClr.index);
         }
-
+        
         [Test]
         public void IList_Of_Primitives_Collection_Operations()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
-
+        
             root.List = new List<string> { "Reading", "Traveling", "Cooking" };
-            Assert.AreEqual(ChangeKind.PropertySet, events.Single().Kind);
-
+            Assert.AreEqual(ChangeKind.PropertySet, events.Single().path[0].changeKind);
+        
             events.Clear();
             root.List[0] = "Hiking";
             ChangeEventArgs eRepl = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eRepl.Kind);
-            Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.Inner.Kind);
-            Assert.AreEqual("List[0]", eRepl.Path);
-            Assert.AreEqual(0, eRepl.Index);
-            Assert.AreEqual("Reading", eRepl.OldValue);
-            Assert.AreEqual("Hiking", eRepl.NewValue);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eRepl.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.path[1].changeKind);
+            Assert.AreEqual("List[0]", eRepl.PathString);
+            Assert.AreEqual(0, eRepl.index);
+            Assert.AreEqual("Reading", eRepl.oldValue.Get<string>());
+            Assert.AreEqual("Hiking", eRepl.newValue.Get<string>());
+        
             events.Clear();
             root.List.Add("Swimming");
             ChangeEventArgs eAdd = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eAdd.Kind);
-            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
-            Assert.AreEqual("List[3]", eAdd.Path);
-            Assert.AreEqual(3, eAdd.Index);
-            Assert.AreEqual("Swimming", eAdd.NewValue);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eAdd.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.path[1].changeKind);
+            Assert.AreEqual("List[3]", eAdd.PathString);
+            Assert.AreEqual(3, eAdd.index);
+            Assert.AreEqual("Swimming", eAdd.newValue.Get<string>());
+        
             events.Clear();
             bool removed = root.List.Remove("Traveling");
             Assert.IsTrue(removed);
             ChangeEventArgs eRem = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eRem.Kind);
-            Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
-            Assert.AreEqual("List[1]", eRem.Path);
-            Assert.AreEqual("Traveling", eRem.OldValue);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eRem.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionRemove, eRem.path[1].changeKind);
+            Assert.AreEqual("List[1]", eRem.PathString);
+            Assert.AreEqual("Traveling", eRem.oldValue.Get<string>());
+        
             events.Clear();
             root.List.Clear();
             ChangeEventArgs eClr = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
-            Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
-            Assert.AreEqual("List", eClr.Path);
+            Assert.AreEqual(ChangeKind.ChildChange, eClr.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionClear, eClr.path[1].changeKind);
+            Assert.AreEqual("List", eClr.PathString);
         }
-
+        
         [Test]
         public void ISet_Of_Primitives_And_Objects_Operations()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
-
+        
             root.Set = new HashSet<string>();
             ChangeEventArgs eSet = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSet.Kind);
-            Assert.AreEqual("Set", eSet.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSet.path[0].changeKind);
+            Assert.AreEqual("Set", eSet.PathString);
+        
             events.Clear();
             bool added = root.Set.Add("alpha");
             Assert.IsTrue(added);
             ChangeEventArgs eAdd = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eAdd.Kind);
-            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
-            Assert.AreEqual("Set[*]", eAdd.Path);
-            Assert.AreEqual("alpha", eAdd.NewValue);
-            Assert.AreEqual(-1, eAdd.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eAdd.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.path[1].changeKind);
+            Assert.AreEqual("Set[*]", eAdd.PathString);
+            Assert.AreEqual("alpha", eAdd.newValue.Get<string>());
+            Assert.AreEqual(-1, eAdd.index);
+        
             events.Clear();
             added = root.Set.Add("alpha");
             Assert.IsFalse(added);
             Assert.IsEmpty(events, "Adding duplicate to set should not raise change.");
-
+        
             events.Clear();
             bool removed = root.Set.Remove("alpha");
             Assert.IsTrue(removed);
             ChangeEventArgs eRem = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eRem.Kind);
-            Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
-            Assert.AreEqual("Set[*]", eRem.Path);
-            Assert.AreEqual("alpha", eRem.OldValue);
-            Assert.AreEqual(-1, eRem.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eRem.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionRemove, eRem.path[1].changeKind);
+            Assert.AreEqual("Set[*]", eRem.PathString);
+            Assert.AreEqual("alpha", eRem.oldValue.Get<string>());
+            Assert.AreEqual(-1, eRem.index);
+        
             events.Clear();
             root.InnerSet = new HashSet<SampleInner>();
             ChangeEventArgs eSet2 = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSet2.Kind);
-            Assert.AreEqual("InnerSet", eSet2.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSet2.path[0].changeKind);
+            Assert.AreEqual("InnerSet", eSet2.PathString);
+        
             events.Clear();
             bool addedObj = root.InnerSet.Add(new SampleInner { Description = "X" });
             Assert.IsTrue(addedObj);
             ChangeEventArgs eAddObj = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eAddObj.Kind);
-            Assert.AreEqual(ChangeKind.CollectionAdd, eAddObj.Inner.Kind);
-            Assert.AreEqual("InnerSet[*]", eAddObj.Path);
-            Assert.AreEqual(-1, eAddObj.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eAddObj.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionAdd, eAddObj.path[1].changeKind);
+            Assert.AreEqual("InnerSet[*]", eAddObj.PathString);
+            Assert.AreEqual(-1, eAddObj.index);
+        
             events.Clear();
             root.InnerSet.Single().Description = "Y";
             ChangeEventArgs eChild = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
-            Assert.AreEqual(ChangeKind.ChildChange, eChild.Inner.Kind);
-            Assert.AreEqual(ChangeKind.PropertySet, eChild.Inner.Inner.Kind);
-            Assert.AreEqual("InnerSet[*].Description", eChild.Path);
-            Assert.AreEqual("X", eChild.OldValue);
-            Assert.AreEqual("Y", eChild.NewValue);
-            Assert.AreEqual(-1, eChild.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eChild.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.ChildChange, eChild.path[1].changeKind);
+            Assert.AreEqual(ChangeKind.PropertySet, eChild.path[2].changeKind);
+            Assert.AreEqual("InnerSet[*].Description", eChild.PathString);
+            Assert.AreEqual("X", eChild.oldValue.Get<string>());
+            Assert.AreEqual("Y", eChild.newValue.Get<string>());
+            Assert.AreEqual(-1, eChild.index);
+        
             events.Clear();
             root.InnerSet.Clear();
             ChangeEventArgs eClr = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
-            Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
-            Assert.AreEqual("InnerSet", eClr.Path);
+            Assert.AreEqual(ChangeKind.ChildChange, eClr.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionClear, eClr.path[1].changeKind);
+            Assert.AreEqual("InnerSet", eClr.PathString);
         }
-
+        
         [Test]
         public void IDictionary_Of_Primitives_And_Objects_Operations()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
-
+        
             root.Dict = new Dictionary<string, string>();
             ChangeEventArgs eSet = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSet.Kind);
-            Assert.AreEqual("Dict", eSet.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSet.path[0].changeKind);
+            Assert.AreEqual("Dict", eSet.PathString);
+        
             events.Clear();
             root.Dict["en"] = "Hello";
             ChangeEventArgs eAdd = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eAdd.Kind);
-            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.Inner.Kind);
-            Assert.AreEqual("Dict[en]", eAdd.Path);
-            Assert.AreEqual("en", eAdd.Key);
-            Assert.AreEqual("Hello", eAdd.NewValue);
-            Assert.AreEqual(-1, eAdd.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eAdd.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd.path[1].changeKind);
+            Assert.AreEqual("Dict[en]", eAdd.PathString);
+            Assert.AreEqual("en", eAdd.key.Get<string>());
+            Assert.AreEqual("Hello", eAdd.newValue.Get<string>());
+            Assert.AreEqual(-1, eAdd.index);
+        
             events.Clear();
             root.Dict["en"] = "Hello2";
             ChangeEventArgs eRepl = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eRepl.Kind);
-            Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.Inner.Kind);
-            Assert.AreEqual("Dict[en]", eRepl.Path);
-            Assert.AreEqual("en", eRepl.Key);
-            Assert.AreEqual("Hello", eRepl.OldValue);
-            Assert.AreEqual("Hello2", eRepl.NewValue);
-            Assert.AreEqual(-1, eRepl.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eRepl.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionReplace, eRepl.path[1].changeKind);
+            Assert.AreEqual("Dict[en]", eRepl.PathString);
+            Assert.AreEqual("en", eRepl.key.Get<string>());
+            Assert.AreEqual("Hello", eRepl.oldValue.Get<string>());
+            Assert.AreEqual("Hello2", eRepl.newValue.Get<string>());
+            Assert.AreEqual(-1, eRepl.index);
+        
             events.Clear();
             bool removed = root.Dict.Remove("en");
             Assert.IsTrue(removed);
             ChangeEventArgs eRem = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eRem.Kind);
-            Assert.AreEqual(ChangeKind.CollectionRemove, eRem.Inner.Kind);
-            Assert.AreEqual("Dict[en]", eRem.Path);
-            Assert.AreEqual("en", eRem.Key);
-            Assert.AreEqual("Hello2", eRem.OldValue);
-            Assert.AreEqual(-1, eRem.Index);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eRem.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionRemove, eRem.path[1].changeKind);
+            Assert.AreEqual("Dict[en]", eRem.PathString);
+            Assert.AreEqual("en", eRem.key.Get<string>());
+            Assert.AreEqual("Hello2", eRem.oldValue.Get<string>());
+            Assert.AreEqual(-1, eRem.index);
+        
             events.Clear();
             root.Dict.Clear();
             ChangeEventArgs eClr = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eClr.Kind);
-            Assert.AreEqual(ChangeKind.CollectionClear, eClr.Inner.Kind);
-            Assert.AreEqual("Dict", eClr.Path);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eClr.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionClear, eClr.path[1].changeKind);
+            Assert.AreEqual("Dict", eClr.PathString);
+        
             events.Clear();
             root.InnerDict = new Dictionary<string, SampleInner>();
             ChangeEventArgs eSet2 = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSet2.Kind);
-            Assert.AreEqual("InnerDict", eSet2.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSet2.path[0].changeKind);
+            Assert.AreEqual("InnerDict", eSet2.PathString);
+        
             events.Clear();
             root.InnerDict["key"] = new SampleInner { Description = "A" };
             ChangeEventArgs eAdd2 = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eAdd2.Kind);
-            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd2.Inner.Kind);
-            Assert.AreEqual("InnerDict[key]", eAdd2.Path);
-            Assert.AreEqual("key", eAdd2.Key);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eAdd2.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionAdd, eAdd2.path[1].changeKind);
+            Assert.AreEqual("InnerDict[key]", eAdd2.PathString);
+            Assert.AreEqual("key", eAdd2.key.Get<string>());
+        
             events.Clear();
             root.InnerDict["key"].Description = "B";
             ChangeEventArgs eChild = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eChild.Kind);
-            Assert.AreEqual(ChangeKind.ChildChange, eChild.Inner.Kind);
-            Assert.AreEqual(ChangeKind.PropertySet, eChild.Inner.Inner.Kind);
-            Assert.AreEqual("InnerDict[key].Description", eChild.Path);
-            Assert.AreEqual("key", eChild.Key);
-            Assert.AreEqual("A", eChild.OldValue);
-            Assert.AreEqual("B", eChild.NewValue);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eChild.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.ChildChange, eChild.path[1].changeKind);
+            Assert.AreEqual(ChangeKind.PropertySet, eChild.path[2].changeKind);
+            Assert.AreEqual("InnerDict[key].Description", eChild.PathString);
+            Assert.AreEqual("key", eChild.key.Get<string>());
+            Assert.AreEqual("A", eChild.oldValue.Get<string>());
+            Assert.AreEqual("B", eChild.newValue.Get<string>());
+        
             events.Clear();
             SampleInner old = root.InnerDict["key"];
             root.InnerDict["key"] = new SampleInner { Description = "C" };
             ChangeEventArgs eRepl2 = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eRepl2.Kind);
-            Assert.AreEqual(ChangeKind.CollectionReplace, eRepl2.Inner.Kind);
-            Assert.AreEqual("InnerDict[key]", eRepl2.Path);
-            Assert.AreEqual("key", eRepl2.Key);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eRepl2.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionReplace, eRepl2.path[1].changeKind);
+            Assert.AreEqual("InnerDict[key]", eRepl2.PathString);
+            Assert.AreEqual("key", eRepl2.key.Get<string>());
+        
             events.Clear();
             old.Description = "ZZZ";
             Assert.IsEmpty(events, "Old dictionary value should be detached after replacement.");
-
+        
             events.Clear();
             root.InnerDict["key"].Description = "D";
             ChangeEventArgs eChild2 = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eChild2.Kind);
-            Assert.AreEqual(ChangeKind.ChildChange, eChild2.Inner.Kind);
-            Assert.AreEqual(ChangeKind.PropertySet, eChild2.Inner.Inner.Kind);
-            Assert.AreEqual("InnerDict[key].Description", eChild2.Path);
-            Assert.AreEqual("key", eChild2.Key);
-            Assert.AreEqual("C", eChild2.OldValue);
-            Assert.AreEqual("D", eChild2.NewValue);
-
+            Assert.AreEqual(ChangeKind.ChildChange, eChild2.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.ChildChange, eChild2.path[1].changeKind);
+            Assert.AreEqual(ChangeKind.PropertySet, eChild2.path[2].changeKind);
+            Assert.AreEqual("InnerDict[key].Description", eChild2.PathString);
+            Assert.AreEqual("key", eChild2.key.Get<string>());
+            Assert.AreEqual("C", eChild2.oldValue.Get<string>());
+            Assert.AreEqual("D", eChild2.newValue.Get<string>());
+        
             events.Clear();
             root.InnerDict.Clear();
             ChangeEventArgs eClr2 = events.Single();
-            Assert.AreEqual(ChangeKind.ChildChange, eClr2.Kind);
-            Assert.AreEqual(ChangeKind.CollectionClear, eClr2.Inner.Kind);
-            Assert.AreEqual("InnerDict", eClr2.Path);
+            Assert.AreEqual(ChangeKind.ChildChange, eClr2.path[0].changeKind);
+            Assert.AreEqual(ChangeKind.CollectionClear, eClr2.path[1].changeKind);
+            Assert.AreEqual("InnerDict", eClr2.PathString);
         }
-
+        
         [Test]
         public void Replacing_Collections_Detaches_Old_Collections_And_Items()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
-
+        
             root.InnerList = new List<SampleInner> { new() { Description = "L1" } };
             events.Clear();
-
+        
             IList<SampleInner> oldList = root.InnerList;
             root.InnerList = new List<SampleInner>();
             ChangeEventArgs eSetList = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSetList.Kind);
-            Assert.AreEqual("InnerList", eSetList.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSetList.path[0].changeKind);
+            Assert.AreEqual("InnerList", eSetList.PathString);
+        
             events.Clear();
             oldList[0].Description = "L1x";
             Assert.IsEmpty(events, "Changes in old list items should not bubble after the list is replaced.");
-
+        
             root.InnerSet = new HashSet<SampleInner> { new() { Description = "S1" } };
             events.Clear();
-
+        
             ISet<SampleInner> oldSet = root.InnerSet;
             root.InnerSet = new HashSet<SampleInner>();
             ChangeEventArgs eSetSet = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSetSet.Kind);
-            Assert.AreEqual("InnerSet", eSetSet.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSetSet.path[0].changeKind);
+            Assert.AreEqual("InnerSet", eSetSet.PathString);
+        
             events.Clear();
             foreach (SampleInner it in oldSet) it.Description = "S1x";
             Assert.IsEmpty(events, "Changes in old set items should not bubble after the set is replaced.");
-
+        
             root.InnerDict = new Dictionary<string, SampleInner> { ["k"] = new() { Description = "D1" } };
             events.Clear();
-
+        
             IDictionary<string, SampleInner> oldDict = root.InnerDict;
             root.InnerDict = new Dictionary<string, SampleInner>();
             ChangeEventArgs eSetDict = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, eSetDict.Kind);
-            Assert.AreEqual("InnerDict", eSetDict.Path);
-
+            Assert.AreEqual(ChangeKind.PropertySet, eSetDict.path[0].changeKind);
+            Assert.AreEqual("InnerDict", eSetDict.PathString);
+        
             events.Clear();
             oldDict["k"].Description = "D1x";
             Assert.IsEmpty(events, "Changes in old dictionary items should not bubble after the dictionary is replaced.");
         }
-
+        
         [Test]
         public void AcceptChanges_Resets_Dirty_And_Does_Not_Suppress_Events()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);
             ITrackable t = (ITrackable)root;
-
+        
             root.Name = "A";
             Assert.IsTrue(t.IsDirty);
             Assert.IsNotEmpty(events);
-
+        
             events.Clear();
             t.AcceptChanges();
             Assert.IsFalse(t.IsDirty);
-
+        
             events.Clear();
             root.Name = "B";
             Assert.IsTrue(t.IsDirty);
             ChangeEventArgs e = events.Single();
-            Assert.AreEqual(ChangeKind.PropertySet, e.Kind);
-            Assert.AreEqual("Name", e.Path);
-            Assert.AreEqual("A", e.OldValue);
-            Assert.AreEqual("B", e.NewValue);
+            Assert.AreEqual(ChangeKind.PropertySet, e.path[0].changeKind);
+            Assert.AreEqual("Name", e.PathString);
+            Assert.AreEqual("A", e.oldValue.Get<string>());
+            Assert.AreEqual("B", e.newValue.Get<string>());
         }
-
+        
         private TrackableSampleRoot CreateTrackableSample()
         {
             SampleRoot source = new SampleRoot
@@ -509,32 +511,32 @@ namespace TrackableState.Tests
                     ["K2"] = "V-Init-2",
                 }
             };
-
+        
             return source.AsTrackable();
         }
-
+        
         [Test]
         public void AsNormal_ReturnsPlainPocoTypes_NotTrackable()
         {
             TrackableSampleRoot trackable = CreateTrackableSample();
             SampleRoot normal = trackable.AsNormal();
-
+        
             Assert.IsNotNull(normal);
             Assert.IsNotInstanceOf<TrackableSampleRoot>(normal, "AsNormal should return plain SampleRoot, not TrackableSampleRoot.");
             Assert.IsFalse(normal is ITrackable, "AsNormal should not return an ITrackable instance.");
-
+        
             if (normal.Inner != null)
             {
                 Assert.IsFalse(normal.Inner is ITrackable, "Inner must be a plain SampleInner.");
             }
-
+        
             Assert.IsFalse(normal.InnerList is ITrackable, "InnerList must be a plain IList<T>.");
             Assert.IsFalse(normal.List is ITrackable, "List must be a plain IList<T>.");
             Assert.IsFalse(normal.InnerSet is ITrackable, "InnerSet must be a plain ISet<T>.");
             Assert.IsFalse(normal.Set is ITrackable, "Set must be a plain ISet<T>.");
             Assert.IsFalse(normal.InnerDict is ITrackable, "InnerDict must be a plain IDictionary<TKey, TValue>.");
             Assert.IsFalse(normal.Dict is ITrackable, "Dict must be a plain IDictionary<TKey, TValue>.");
-
+        
             if (normal.InnerList != null)
             {
                 foreach (SampleInner item in normal.InnerList)
@@ -542,7 +544,7 @@ namespace TrackableState.Tests
                     Assert.IsFalse(item is ITrackable, "InnerList elements must be plain SampleInner.");
                 }
             }
-
+        
             if (normal.InnerSet != null)
             {
                 foreach (SampleInner item in normal.InnerSet)
@@ -550,7 +552,7 @@ namespace TrackableState.Tests
                     Assert.IsFalse(item is ITrackable, "InnerSet elements must be plain SampleInner.");
                 }
             }
-
+        
             if (normal.InnerDict != null)
             {
                 foreach (KeyValuePair<string, SampleInner> kv in normal.InnerDict)
@@ -559,7 +561,7 @@ namespace TrackableState.Tests
                 }
             }
         }
-
+        
         [Test]
         public void AsNormal_ValuesMatchLatestTrackableState()
         {
@@ -589,33 +591,33 @@ namespace TrackableState.Tests
                 ["K1"] = "V1",
                 ["K2"] = "V2",
             };
-
+        
             SampleRoot normal = trackable.AsNormal();
-
+        
             Assert.AreEqual(trackable.Name, normal.Name);
             Assert.AreEqual(trackable.Age, normal.Age);
             Assert.AreEqual(trackable.Inner?.Description, normal.Inner?.Description);
-
+        
             CollectionAssert.AreEqual(
                 trackable.InnerList?.Select(x => x?.Description).ToList(),
                 normal.InnerList?.Select(x => x?.Description).ToList(),
                 "InnerList contents should match by Description");
-
+        
             CollectionAssert.AreEqual(
                 trackable.List?.ToList(),
                 normal.List?.ToList(),
                 "List contents should match");
-
+        
             CollectionAssert.AreEquivalent(
                 trackable.InnerSet?.Select(x => x?.Description).ToList(),
                 normal.InnerSet?.Select(x => x?.Description).ToList(),
                 "InnerSet contents should match by Description");
-
+        
             CollectionAssert.AreEquivalent(
                 trackable.Set?.ToList(),
                 normal.Set?.ToList(),
                 "Set contents should match");
-
+        
             CollectionAssert.AreEquivalent(
                 trackable.InnerDict?.Keys.ToList(),
                 normal.InnerDict?.Keys.ToList(),
@@ -627,7 +629,7 @@ namespace TrackableState.Tests
                     Assert.AreEqual(trackable.InnerDict[k]?.Description, normal.InnerDict[k]?.Description, $"InnerDict value mismatch for key {k}");
                 }
             }
-
+        
             CollectionAssert.AreEquivalent(
                 trackable.Dict?.Keys.ToList(),
                 normal.Dict?.Keys.ToList(),
@@ -640,12 +642,12 @@ namespace TrackableState.Tests
                 }
             }
         }
-
+        
         [Test]
         public void AsNormal_ResultIsDetached_MutationsDoNotAffectTrackable()
         {
             TrackableSampleRoot trackable = CreateTrackableSample();
-
+        
             var snapshot = new
             {
                 trackable.Name,
@@ -658,60 +660,60 @@ namespace TrackableState.Tests
                 InnerDict = trackable.InnerDict?.ToDictionary(kv => kv.Key, kv => kv.Value?.Description),
                 Dict = trackable.Dict?.ToDictionary(kv => kv.Key, kv => kv.Value),
             };
-
+        
             SampleRoot normal = trackable.AsNormal();
-
+        
             normal.Name = "Changed-Name";
             normal.Age += 10;
-
+        
             if (normal.Inner != null)
             {
                 normal.Inner.Description = "Changed-Inner";
             }
-
+        
             if (normal.InnerList is { Count: > 0 })
             {
                 normal.InnerList[0] = new SampleInner { Description = "Changed-IL-0" };
                 normal.InnerList.Add(new SampleInner { Description = "Added-IL" });
             }
-
+        
             if (normal.List != null)
             {
                 normal.List.Add("Added-L");
                 if (normal.List.Count > 0) normal.List[0] = "Changed-L-0";
             }
-
+        
             if (normal.InnerSet != null)
             {
                 normal.InnerSet.Add(new SampleInner { Description = "Added-IS" });
             }
-
+        
             if (normal.Set != null)
             {
                 normal.Set.Add("Added-S");
             }
-
+        
             if (normal.InnerDict != null)
             {
                 normal.InnerDict["K1"] = new SampleInner { Description = "Changed-ID-1" };
                 normal.InnerDict["K-New"] = new SampleInner { Description = "Added-ID" };
             }
-
+        
             if (normal.Dict != null)
             {
                 normal.Dict["K1"] = "Changed-V1";
                 normal.Dict["K-New"] = "Added-V";
             }
-
+        
             Assert.AreEqual(snapshot.Name, trackable.Name, "Trackable.Name should not be affected by normal mutations.");
             Assert.AreEqual(snapshot.Age, trackable.Age, "Trackable.Age should not be affected by normal mutations.");
             Assert.AreEqual(snapshot.InnerDesc, trackable.Inner?.Description, "Trackable.Inner should not be affected by normal mutations.");
-
+        
             CollectionAssert.AreEqual(snapshot.InnerList, trackable.InnerList?.Select(x => x?.Description).ToList(), "Trackable.InnerList should not be affected.");
             CollectionAssert.AreEqual(snapshot.List, trackable.List?.ToList(), "Trackable.List should not be affected.");
             CollectionAssert.AreEquivalent(snapshot.InnerSet, trackable.InnerSet?.Select(x => x?.Description).ToHashSet(), "Trackable.InnerSet should not be affected.");
             CollectionAssert.AreEquivalent(snapshot.Set, trackable.Set?.ToHashSet(), "Trackable.Set should not be affected.");
-
+        
             if (snapshot.InnerDict == null)
             {
                 Assert.IsNull(trackable.InnerDict, "Trackable.InnerDict should remain null.");
@@ -724,7 +726,7 @@ namespace TrackableState.Tests
                     Assert.AreEqual(snapshot.InnerDict[k], trackable.InnerDict[k]?.Description, $"Trackable.InnerDict value changed for key {k}");
                 }
             }
-
+        
             if (snapshot.Dict == null)
             {
                 Assert.IsNull(trackable.Dict, "Trackable.Dict should remain null.");
