@@ -1,24 +1,10 @@
-﻿using System.Runtime.CompilerServices;
-using BenchmarkDotNet.Attributes;
+﻿using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Engines;
 using BenchmarkDotNet.Jobs;
 using Klopoff.TrackableState.Core;
+using Benchmarks.Models;
 
-[Trackable]
-public class SampleInner
-{
-    public virtual string Description { get; set; }
-}
-
-[Trackable]
-public class SampleRoot
-{
-    public virtual string Name { get; set; }
-    public virtual int Age { get; set; }
-    public virtual SampleInner Inner { get; set; }
-    public virtual IList<string> Tags { get; set; }
-}
-
-namespace Klopoff.TrackableState.TrackablePerformance
+namespace Benchmarks
 {
     [SimpleJob(RuntimeMoniker.Net90, launchCount: 1, warmupCount: 3, iterationCount: 12)]
     [MemoryDiagnoser]
@@ -27,15 +13,18 @@ namespace Klopoff.TrackableState.TrackablePerformance
     {
         private const int N = 1_000_000;
         
+        private Consumer _consumer;
         private string[] _values;
 
         private SampleRoot _plain;
         private TrackableSampleRoot _trackable;
+        
         private static int _counter;
 
         [GlobalSetup]
         public void GlobalSetup()
         {
+            _consumer = new Consumer();
             _values = Enumerable.Range(0, Math.Max(1, N)).Select(i => "v" + i).ToArray();
 
             _plain = new SampleRoot
@@ -74,6 +63,9 @@ namespace Klopoff.TrackableState.TrackablePerformance
             {
                 _plain.Age = i;
             }
+            
+            _consumer.Consume(_plain);
+            _consumer.Consume(_counter);
         }
 
         [Benchmark(Description = "Trackable: Age sets (value-type)")]
@@ -83,6 +75,9 @@ namespace Klopoff.TrackableState.TrackablePerformance
             {
                 _trackable.Age = i;
             }
+            
+            _consumer.Consume(_trackable);
+            _consumer.Consume(_counter);
         }
         
         [Benchmark(Description = "Plain: Name sets")]
@@ -92,6 +87,9 @@ namespace Klopoff.TrackableState.TrackablePerformance
             {
                 _plain.Name = _values[i % _values.Length];
             }
+            
+            _consumer.Consume(_plain);
+            _consumer.Consume(_counter);
         }
 
         [Benchmark(Description = "Trackable: Name sets")]
@@ -101,6 +99,9 @@ namespace Klopoff.TrackableState.TrackablePerformance
             {
                 _trackable.Name = _values[i % _values.Length];
             }
+            
+            _consumer.Consume(_trackable);
+            _consumer.Consume(_counter);
         }
 
         [Benchmark(Description = "Plain: Tags.Add N")]
@@ -110,6 +111,9 @@ namespace Klopoff.TrackableState.TrackablePerformance
             {
                 _plain.Tags.Add(_values[i % _values.Length]);
             }
+            
+            _consumer.Consume(_plain);
+            _consumer.Consume(_counter);
         }
 
         [Benchmark(Description = "Trackable: Tags.Add N")]
@@ -119,6 +123,9 @@ namespace Klopoff.TrackableState.TrackablePerformance
             {
                 _trackable.Tags.Add(_values[i % _values.Length]);
             }
+            
+            _consumer.Consume(_trackable);
+            _consumer.Consume(_counter);
         }
         
         [Benchmark(Description = "Plain: Inner.Description sets")]
@@ -128,6 +135,9 @@ namespace Klopoff.TrackableState.TrackablePerformance
             {
                 _plain.Inner.Description = _values[i % _values.Length];
             }
+            
+            _consumer.Consume(_plain);
+            _consumer.Consume(_counter);
         }
 
         [Benchmark(Description = "Trackable: Inner.Description set")]
@@ -137,6 +147,9 @@ namespace Klopoff.TrackableState.TrackablePerformance
             {
                 _trackable.Inner.Description = _values[i % _values.Length];
             }
+            
+            _consumer.Consume(_trackable);
+            _consumer.Consume(_counter);
         }
     }
 }

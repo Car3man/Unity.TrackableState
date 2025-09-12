@@ -13,6 +13,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\TrackableState\TrackableState.Core\TrackableState.Core.csproj" />
+        <ProjectReference Include="..\..\src\TrackableState\TrackableState.Packer\TrackableState.Packer.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Klopoff.TrackableState.Core;
 using Klopoff.TrackableState.Core.Pools;
 
@@ -7,94 +8,178 @@ namespace TrackableState.Packer
 {
     public class ChangeLogBuffer
     {
-        private readonly List<ChangeEventArgs> _buffer = new();
-        private readonly PathKeyComparer _comparer = new();
+        private readonly List<ChangeEventArgs> _buffer;
+        private readonly PathKeyComparer _comparer;
+        private readonly int _autoPackInterval;
 
-        public IReadOnlyList<ChangeEventArgs> Snapshot => _buffer.ToArray();
+        private int _autoPackCounter;
 
+        public IReadOnlyList<ChangeEventArgs> Snapshot => _buffer;
+        public int Count => _buffer.Count;
+        
+        public const int DefaultCoalesceAddScanLimit = 64;
+
+        public ChangeLogBuffer(int capacity = 1024, int autoPackInterval = 256)
+        {
+            _buffer = new List<ChangeEventArgs>(capacity);
+            _comparer = new PathKeyComparer();
+            _autoPackInterval = autoPackInterval;
+            _autoPackCounter = 0;
+        }
+        
         public void Add(in ChangeEventArgs e)
         {
             _buffer.Add(e);
+            _autoPackCounter++;
+            
+            if (_autoPackInterval > 0 && _autoPackCounter >= _autoPackInterval)
+            {
+                Pack();
+                _autoPackCounter = 0;
+            }
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool AddCoalescing(in ChangeEventArgs e, int scanLimit = DefaultCoalesceAddScanLimit)
+        {
+            int count = _buffer.Count;
+            if (count == 0 || scanLimit <= 0)
+            {
+                Add(e);
+                return false;
+            }
 
+            PathKey newKey = new PathKey(e.path);
+            int startIndex = Math.Max(0, count - scanLimit);
+
+            for (int i = count - 1; i >= startIndex; i--)
+            {
+                ChangeEventArgs existing = _buffer[i];
+                PathKey existingKey = new PathKey(existing.path);
+                
+                if (IsAncestorOrDescendantPaths(newKey.Path, existingKey.Path) && !_comparer.Equals(newKey, existingKey))
+                {
+                    break;
+                }
+                
+                if (!_comparer.Equals(newKey, existingKey))
+                {
+                    continue;
+                }
+
+                int right = i;
+                int left = i;
+
+                for (int j = right - 1; j > 0; j--)
+                {
+                    ChangeEventArgs prev = _buffer[j];
+                    PathKey prevKey = new PathKey(prev.path);
+                    
+                    if (!_comparer.Equals(newKey, prevKey))
+                    {
+                        break;
+                    }
+
+                    left = j;
+                }
+                
+                _buffer[left] = Merge(_buffer[left], e);
+                
+                if (right > left)
+                {
+                    _buffer.RemoveRange(left + 1, right - left);
+                }
+                return true;
+            }
+            
+            Add(e);
+            return false;
+        }
+        
         public void Pack()
         {
             int n = _buffer.Count;
-            if (n == 0)
+            if (n <= 1)
             {
                 return;
             }
 
-            using var firstIndexPooled = DictionaryPool<PathKey, int>.GetPooled(out Dictionary<PathKey, int> firstIndex, _comparer);
-            using var lastIndexPooled = DictionaryPool<PathKey, int>.GetPooled(out Dictionary<PathKey, int> lastIndex, _comparer);
-
+            Span<bool> skip = stackalloc bool[n];
+            
+            using var openPooled = DictionaryPool<PathKey, MergeSession>.GetPooled(out Dictionary<PathKey, MergeSession> open, _comparer);
+            using var mergedAtIndexPooled = DictionaryPool<int, ChangeEventArgs>.GetPooled(out Dictionary<int, ChangeEventArgs> mergedAtIndex);
+            using var toClosePooled = ListPool<PathKey>.GetPooled(out List<PathKey> toClose);
+            
             for (int i = 0; i < n; i++)
             {
-                PathKey pathKey = new PathKey(_buffer[i].path);
-                firstIndex.TryAdd(pathKey, i);
-                lastIndex[pathKey] = i;
-            }
-            
-            using var compactRangesPooled = DictionaryPool<PathKey, (int, int)>.GetPooled(out Dictionary<PathKey, (int first, int last)> compactRanges, _comparer);
-            Span<bool> removed = stackalloc bool[n];
-
-            foreach ((PathKey target, int first) in firstIndex)
-            {
-                int last = lastIndex[target];
-                if (first == last)
+                ChangeEventArgs current = _buffer[i];
+                PathKey currentKey = new PathKey(current.path);
+                
+                if (open.Count > 0)
                 {
-                    continue;
+                    foreach (KeyValuePair<PathKey, MergeSession> kv in open)
+                    {
+                        PathKey sessionKey = kv.Key;
+                        
+                        if (IsAncestorOrDescendantPaths(sessionKey.Path, currentKey.Path) && !_comparer.Equals(sessionKey, currentKey))
+                        {
+                            toClose.Add(sessionKey);
+                        }
+                    }
+                    
+                    for (int t = 0; t < toClose.Count; t++)
+                    {
+                        PathKey closeKey = toClose[t];
+                        MergeSession session = open[closeKey];
+                        
+                        if (session.Count > 1)
+                        {
+                            mergedAtIndex[session.FirstIndex] = Merge(session.FirstEvent, session.LastEvent);
+                        }
+                        
+                        open.Remove(closeKey);
+                    }
+                    
+                    toClose.Clear();
                 }
                 
-                bool hasConflict = false;
-                
-                for (int j = first + 1; j < last; j++)
+                if (open.TryGetValue(currentKey, out MergeSession existing))
                 {
-                    PathKey other = new PathKey(_buffer[j].path);
+                    skip[i] = true;
+                    existing.Add(current);
+                    open[currentKey] = existing;
+                }
+                else
+                {
+                    open[currentKey] = new MergeSession(i, current, current);
+                }
+            }
+            
+            if (open.Count > 0)
+            {
+                foreach (KeyValuePair<PathKey, MergeSession> kv in open)
+                {
+                    MergeSession session = kv.Value;
                     
-                    if (IsAncestorOrDescendant(target, other) && !_comparer.Equals(target, other))
+                    if (session.Count > 1)
                     {
-                        hasConflict = true;
-                        break;
+                        mergedAtIndex[session.FirstIndex] = Merge(session.FirstEvent, session.LastEvent);
                     }
                 }
-
-                if (hasConflict)
-                {
-                    continue;
-                }
-                
-                compactRanges[target] = (first, last);
-                
-                for (int j = first; j <= last; j++)
-                {
-                    removed[j] = true;
-                }
-
-                removed[first] = false;
             }
             
-            using var insertedPooled = HashSetPool<PathKey>.GetPooled(out HashSet<PathKey> inserted, _comparer);
             int write = 0;
-
+            
             for (int i = 0; i < n; i++)
             {
-                if (removed[i])
+                if (skip[i])
                 {
                     continue;
                 }
 
-                FixedList8<PathSegment> path = _buffer[i].path;
-                PathKey key = new PathKey(path);
-
-                if (compactRanges.TryGetValue(key, out (int first, int last) range) && !inserted.Contains(key))
+                if (mergedAtIndex.TryGetValue(i, out ChangeEventArgs merged))
                 {
-                    ChangeEventArgs firstEvent = _buffer[range.first];
-                    ChangeEventArgs lastEvent  = _buffer[range.last];
-                    ChangeEventArgs merged = Merge(firstEvent, lastEvent);
-
                     _buffer[write++] = merged;
-                    inserted.Add(key);
                 }
                 else
                 {
@@ -102,17 +187,20 @@ namespace TrackableState.Packer
                     {
                         _buffer[write] = _buffer[i];
                     }
-
+                    
                     write++;
                 }
             }
-            
+
             if (write < n)
             {
                 _buffer.RemoveRange(write, n - write);
             }
         }
-        
+
+        public void Clear() => _buffer.Clear();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private ChangeEventArgs Merge(in ChangeEventArgs first, in ChangeEventArgs last) => new(
             path: last.path,
             oldValue: first.oldValue,
@@ -120,61 +208,32 @@ namespace TrackableState.Packer
             index: last.index,
             key: last.key);
 
-        private bool IsAncestorOrDescendant(PathKey a, PathKey b)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool IsAncestorOrDescendantPaths(in FixedList8<PathSegment> a, in FixedList8<PathSegment> b)
         {
-            if (a.Path.Count <= b.Path.Count)
+            if (a.Count <= b.Count)
             {
                 bool match = true;
-                
-                for (int i = 0; i < a.Path.Count; i++)
+                for (int i = 0; i < a.Count; i++)
                 {
-                    if (a.Path[i].segmentType != b.Path[i].segmentType)
-                    {
-                        match = false;
-                        break;
-                    }
-
-                    if (a.Path[i].memberInfo.Id != b.Path[i].memberInfo.Id)
-                    {
-                        match = false;
-                        break;
-                    }
+                    if (a[i].segmentType != b[i].segmentType) { match = false; break; }
+                    if (a[i].memberInfo.Id != b[i].memberInfo.Id) { match = false; break; }
                 }
-                
-                if (match)
-                {
-                    return true;
-                }
+                if (match) { return true; }
             }
-            
-            if (b.Path.Count <= a.Path.Count)
+
+            if (b.Count <= a.Count)
             {
                 bool match = true;
-                
-                for (int i = 0; i < b.Path.Count; i++)
+                for (int i = 0; i < b.Count; i++)
                 {
-                    if (b.Path[i].segmentType != a.Path[i].segmentType)
-                    {
-                        match = false;
-                        break;
-                    }
-
-                    if (b.Path[i].memberInfo.Id != a.Path[i].memberInfo.Id)
-                    {
-                        match = false;
-                        break;
-                    }
+                    if (b[i].segmentType != a[i].segmentType) { match = false; break; }
+                    if (b[i].memberInfo.Id != a[i].memberInfo.Id) { match = false; break; }
                 }
-                
-                if (match)
-                {
-                    return true;
-                }
+                if (match) { return true; }
             }
 
             return false;
         }
-
-        public void Clear() => _buffer.Clear();
     }
 }

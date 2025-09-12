@@ -826,5 +826,141 @@ namespace TrackableState.Tests
             Assert.AreEqual(0, ageEvent.oldValue.Get<int>(), "Initial default int oldValue should be 0.");
             Assert.AreEqual(2, ageEvent.newValue.Get<int>());
         }
+        
+        private (SampleRoot root, ChangeLogBuffer buffer) NewRootWithCoalescingBuffer(SampleRoot plain,
+            int scanLimit = ChangeLogBuffer.DefaultCoalesceAddScanLimit)
+        {
+            ChangeLogBuffer buffer = new ChangeLogBuffer();
+            TrackableSampleRoot root = plain.AsTrackable();
+            root.Changed += OnChange;
+            return (root, buffer);
+            void OnChange(object _, in ChangeEventArgs e) => buffer.AddCoalescing(e, scanLimit);
+        }
+
+        [Test]
+        public void AddCoalescing_Merges_Sequential_Property_Changes_For_Same_Path()
+        {
+            (SampleRoot root, ChangeLogBuffer buffer) = NewRootWithCoalescingBuffer(new SampleRoot
+            {
+                Name = "0"
+            });
+
+            root.Name = "A";
+            root.Name = "B";
+            root.Name = "C";
+
+            IReadOnlyList<ChangeEventArgs> snapshot = buffer.Snapshot;
+            Assert.AreEqual(1, snapshot.Count, "On-the-fly coalescing should keep only one Name event.");
+
+            ChangeEventArgs e = snapshot[0];
+            Assert.AreEqual("Name", e.PathString);
+            Assert.AreEqual("0", e.oldValue.Get<string>(), "OldValue must remain from the initial state.");
+            Assert.AreEqual("C", e.newValue.Get<string>(), "NewValue must be the last assigned value.");
+            Assert.AreEqual(ChangeKind.PropertySet, e.path[0].changeKind);
+        }
+
+        [Test]
+        public void AddCoalescing_Does_Not_Merge_When_Descendant_Change_Introduces_Conflict()
+        {
+            (SampleRoot root, ChangeLogBuffer buffer) = NewRootWithCoalescingBuffer(new SampleRoot());
+            
+            root.Inner = new SampleInner { Description = "X" };
+            root.Inner.Description = "Y";
+            root.Inner = new SampleInner { Description = "Z" };
+
+            IReadOnlyList<ChangeEventArgs> snapshot = buffer.Snapshot;
+            Assert.AreEqual(3, snapshot.Count, "Ancestor/descendant barrier must prevent cross-merge.");
+            Assert.AreEqual("Inner", snapshot[0].PathString);
+            Assert.AreEqual("Inner.Description", snapshot[1].PathString);
+            Assert.AreEqual("Inner", snapshot[2].PathString);
+        }
+
+        [Test]
+        public void AddCoalescing_Merges_Interleaved_Unrelated_Paths_Independently()
+        {
+            (SampleRoot root, ChangeLogBuffer buffer) = NewRootWithCoalescingBuffer(new SampleRoot
+            {
+                Name = "0",
+                Age = 0
+            });
+
+            root.Name = "N1";
+            root.Age  = 1;
+            root.Name = "N2";
+            root.Age  = 2;
+            root.Name = "N3";
+
+            IReadOnlyList<ChangeEventArgs> snapshot = buffer.Snapshot;
+            Assert.AreEqual(2, snapshot.Count, "Expected two coalesced events (Name, Age).");
+
+            ChangeEventArgs nameEvent = snapshot.First(e => e.PathString == "Name");
+            Assert.AreEqual("0", nameEvent.oldValue.Get<string>());
+            Assert.AreEqual("N3", nameEvent.newValue.Get<string>());
+
+            ChangeEventArgs ageEvent = snapshot.First(e => e.PathString == "Age");
+            Assert.AreEqual(0, ageEvent.oldValue.Get<int>(), "Initial default int oldValue should be 0.");
+            Assert.AreEqual(2, ageEvent.newValue.Get<int>());
+        }
+
+        [Test]
+        public void AddCoalescing_Respects_ScanLimit_DoesNotMerge_Beyond_Limit()
+        {
+            (SampleRoot root, ChangeLogBuffer buffer) = NewRootWithCoalescingBuffer(new SampleRoot
+            {
+                Name = "0",
+                Age = 0
+            }, 1);
+            
+            root.Name = "N1";
+            
+            root.Age = 1;
+            
+            root.Name = "N2";
+
+            IReadOnlyList<ChangeEventArgs> snapshot = buffer.Snapshot;
+            
+            Assert.AreEqual(3, snapshot.Count, "Expect two Name events (not merged due to scanLimit) and one merged Age event.");
+            
+            var nameEvents = snapshot.Where(e => e.PathString == "Name").ToArray();
+            Assert.AreEqual(2, nameEvents.Length, "Two separate Name events expected due to scanLimit.");
+            
+            Assert.AreEqual("0", nameEvents[0].oldValue.Get<string>());
+            Assert.AreEqual("N1", nameEvents[0].newValue.Get<string>());
+
+            Assert.AreEqual("N2", nameEvents[1].newValue.Get<string>());
+
+            ChangeEventArgs ageEvent = snapshot.First(e => e.PathString == "Age");
+            Assert.AreEqual(0, ageEvent.oldValue.Get<int>());
+            Assert.AreEqual(1, ageEvent.newValue.Get<int>());
+        }
+
+        [Test]
+        public void AddCoalescing_Partial_Session_Before_Unrelated_Events_IsMerged()
+        {
+            (SampleRoot root, ChangeLogBuffer buffer) = NewRootWithCoalescingBuffer(new SampleRoot
+            {
+                Name = "0",
+                Age = 0
+            });
+            
+            root.Name = "A1";
+            root.Name = "A2";
+            root.Name = "A3";
+            root.Age  = 1;
+            root.Age  = 2;
+            root.Age  = 3;
+            root.Name = "A4";
+
+            IReadOnlyList<ChangeEventArgs> snapshot = buffer.Snapshot;
+            Assert.AreEqual(2, snapshot.Count, "A and B should be independently coalesced.");
+
+            ChangeEventArgs nameEvent = snapshot.First(e => e.PathString == "Name");
+            Assert.AreEqual("0", nameEvent.oldValue.Get<string>());
+            Assert.AreEqual("A4", nameEvent.newValue.Get<string>());
+
+            ChangeEventArgs ageEvent = snapshot.First(e => e.PathString == "Age");
+            Assert.AreEqual(0, ageEvent.oldValue.Get<int>());
+            Assert.AreEqual(3, ageEvent.newValue.Get<int>());
+        }
     }
 }

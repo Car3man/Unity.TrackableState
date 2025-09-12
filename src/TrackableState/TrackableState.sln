@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrackableState.Generator", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrackableState.Generator.Tests", "TrackableState.Generator\TrackableState.Generator.Tests\TrackableState.Generator.Tests.csproj", "{20AEC1A5-AC72-482A-9298-FEBDE0AF3A7E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TrackableState.Packer", "TrackableState.Packer\TrackableState.Packer.csproj", "{782A0D16-3F45-4C82-9E4F-430E6A5B6302}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{20AEC1A5-AC72-482A-9298-FEBDE0AF3A7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{20AEC1A5-AC72-482A-9298-FEBDE0AF3A7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{20AEC1A5-AC72-482A-9298-FEBDE0AF3A7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{782A0D16-3F45-4C82-9E4F-430E6A5B6302}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{782A0D16-3F45-4C82-9E4F-430E6A5B6302}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{782A0D16-3F45-4C82-9E4F-430E6A5B6302}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{782A0D16-3F45-4C82-9E4F-430E6A5B6302}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
