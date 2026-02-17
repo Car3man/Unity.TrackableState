@@ -1,20 +1,44 @@
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 using Klopoff.TrackableState.Core;
 using UnityEngine;
 
-[Trackable]
+namespace SampleNamespace
+{
+    [Trackable]
+    public class SampleInNamespace
+    {
+        [DataMember]
+        public virtual string Name { get; set; }
+    }
+}
+
+[Trackable(CopyAttributes = false)]
 public class SampleInner
 {
+    [DataMember(Name = "description")]
     public virtual string Description { get; set; }
 }
 
 [Trackable]
 public class SampleRoot
 {
+    [DataMember(Name = "name")]
     public virtual string Name { get; set; }
+    
+    [DataMember(Name = "age")]
     public virtual int Age { get; set; }
+    
+    [DataMember(Name = "inner")]
     public virtual SampleInner Inner { get; set; }
+    
+    [DataMember(Name = "inNamespace")]
+    public virtual SampleNamespace.SampleInNamespace InNamespace { get; set; }
+    
+    [DataMember(Name = "tags")]
     public virtual IList<string> Tags { get; set; }
+    
+    [DataMember(Name = "properties")]
     public virtual IDictionary<string, string> Properties { get; set; }
 }
 

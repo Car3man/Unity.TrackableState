@@ -1,4 +1,8 @@
-﻿using System.Linq;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Globalization;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace Klopoff.TrackableState.Generator.Internal;
@@ -40,29 +44,27 @@ internal static class Emitter
         string trackableName = "Trackable" + classSymbol.Name;
         string baseName = classSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
         
-        CodeWriter w = new CodeWriter();
-        
-        w.Usings(
-            "System",
-            "System.Collections.Generic",
-            "System.Collections.Specialized",
-            "System.ComponentModel",
-            "System.Runtime.CompilerServices",
-            "Klopoff.TrackableState.Core"
-        );
+        CodeWriter w = new();
         
         w.OptionalBlock(ns is null ? null : $"namespace {ns}", () =>
         {
-            w.Block($"public sealed class {trackableName} : {baseName}, ITrackable", () =>
+            if (ShouldCopyAttributes(classSymbol))
             {
-                w.WriteLine("private readonly Dictionary<ITrackable, MemberInfo> _children;");
+                EmitAttributes(w, classSymbol.GetAttributes());
+            }
+            
+            w.Block($"public sealed class {trackableName} : {baseName}, global::Klopoff.TrackableState.Core.ITrackable", () =>
+            {
+                w.WriteLine("private readonly global::System.Collections.Generic.Dictionary<global::Klopoff.TrackableState.Core.ITrackable, global::Klopoff.TrackableState.Core.MemberInfo> _children;");
                 w.BlankLine();
-                w.WriteLine("public event ChangeEventHandler Changed;");
+                w.WriteLine("public event global::Klopoff.TrackableState.Core.ChangeEventHandler Changed;");
+                w.BlankLine();
+                w.WriteLine("[global::System.Runtime.Serialization.IgnoreDataMemberAttribute]");
                 w.Block("public bool IsDirty", () =>
                 {
-                    w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                     w.WriteLine("get;");
-                    w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                     w.WriteLine("private set;");
                 });
                 w.BlankLine();
@@ -84,7 +86,7 @@ internal static class Emitter
                 // ctors
                 w.Block($"public {trackableName}()", () =>
                 {
-                    w.WriteLine("_children = new Dictionary<ITrackable, MemberInfo>();");
+                    w.WriteLine("_children = new global::System.Collections.Generic.Dictionary<global::Klopoff.TrackableState.Core.ITrackable, global::Klopoff.TrackableState.Core.MemberInfo>();");
                     w.BlankLine();
                     w.WriteLine("IsDirty = false;");
                 });
@@ -92,7 +94,7 @@ internal static class Emitter
                 
                 w.Block($"public {trackableName}({baseName} source)", () =>
                 {
-                    w.WriteLine("_children = new Dictionary<ITrackable, MemberInfo>();");
+                    w.WriteLine("_children = new global::System.Collections.Generic.Dictionary<global::Klopoff.TrackableState.Core.ITrackable, global::Klopoff.TrackableState.Core.MemberInfo>();");
                     w.BlankLine();
                     w.WriteLine("IsDirty = false;");
                     w.BlankLine();
@@ -134,8 +136,8 @@ internal static class Emitter
                 w.BlankLine();
                 
                 // child attach
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                w.Block("public void AttachChild(in MemberInfo member, ITrackable child)", () =>
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+                w.Block("public void AttachChild(in global::Klopoff.TrackableState.Core.MemberInfo member, global::Klopoff.TrackableState.Core.ITrackable child)", () =>
                 {
                     w.Block("if (_children.TryAdd(child, member))", () =>
                     {
@@ -145,8 +147,8 @@ internal static class Emitter
                 w.BlankLine();
                 
                 // child deattach
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                w.Block("public void DetachChild(ITrackable child)", () =>
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+                w.Block("public void DetachChild(global::Klopoff.TrackableState.Core.ITrackable child)", () =>
                 {
                     w.Block("if (_children.Remove(child))", () =>
                     {
@@ -156,11 +158,11 @@ internal static class Emitter
                 w.BlankLine();
                 
                 // child changed handler
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                w.Block("public void OnChange(object sender, in ChangeEventArgs args)", () =>
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+                w.Block("public void OnChange(object sender, in global::Klopoff.TrackableState.Core.ChangeEventArgs args)", () =>
                 {
                     w.WriteLine("IsDirty = true;");
-                    w.WriteLine("Changed?.Invoke(this, ChangeEventArgs.ChildProperty(args, _children[(ITrackable)sender]));");
+                    w.WriteLine("Changed?.Invoke(this, global::Klopoff.TrackableState.Core.ChangeEventArgs.ChildProperty(args, _children[(global::Klopoff.TrackableState.Core.ITrackable)sender]));");
                 });
             });
             w.BlankLine();
@@ -198,6 +200,11 @@ internal static class Emitter
 
     private static void EmitPropertyOverride(CodeWriter w, IPropertySymbol p)
     {
+        if (ShouldCopyAttributes(p))
+        {
+            EmitAttributes(w, p.GetAttributes());
+        }
+        
         string typeName = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         string name = p.Name;
 
@@ -207,26 +214,26 @@ internal static class Emitter
             
             w.Block($"public override {typeName} {name}", () =>
             {
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                 w.WriteLine($"get => base.{name};");
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                 w.Block("set", () =>
                 {
-                    w.Block($"if (!EqualityComparer<{typeName}>.Default.Equals(base.{name}, value))", () =>
+                    w.Block($"if (!global::System.Collections.Generic.EqualityComparer<{typeName}>.Default.Equals(base.{name}, value))", () =>
                     {
                         w.WriteLine($"{typeName} oldValue = base.{name};");
-                        w.Block("if (oldValue is ITrackable ot)", () =>
+                        w.Block("if (oldValue is global::Klopoff.TrackableState.Core.ITrackable ot)", () =>
                         {
                             w.WriteLine("DetachChild(ot);");
                         });
                         w.WriteLine($"{typeName} newValue = value is null ? null : {call};");
                         w.WriteLine($"base.{name} = newValue;");
-                        w.Block("if (newValue is ITrackable nt)", () =>
+                        w.Block("if (newValue is global::Klopoff.TrackableState.Core.ITrackable nt)", () =>
                         {
-                            w.WriteLine($"AttachChild(new MemberInfo({name}Id, \"{name}\"), nt);");
+                            w.WriteLine($"AttachChild(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), nt);");
                         });
                         w.WriteLine("IsDirty = true;");
-                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(new MemberInfo({name}Id, \"{name}\"), Payload24.From(oldValue), Payload24.From(value)));");
+                        w.WriteLine($"Changed?.Invoke(this, global::Klopoff.TrackableState.Core.ChangeEventArgs.PropertySet(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), global::Klopoff.TrackableState.Core.Payload24.From(oldValue), global::Klopoff.TrackableState.Core.Payload24.From(value)));");
                     });
                 });
             });
@@ -237,26 +244,26 @@ internal static class Emitter
             
             w.Block($"public override {typeName} {name}", () =>
             {
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                 w.WriteLine($"get => base.{name};");
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                 w.Block("set", () =>
                 {
-                    w.Block($"if (!EqualityComparer<{typeName}>.Default.Equals(base.{name}, value))", () =>
+                    w.Block($"if (!global::System.Collections.Generic.EqualityComparer<{typeName}>.Default.Equals(base.{name}, value))", () =>
                     {
                         w.WriteLine($"{typeName} oldValue = base.{name};");
-                        w.Block("if (oldValue is ITrackable ot)", () =>
+                        w.Block("if (oldValue is global::Klopoff.TrackableState.Core.ITrackable ot)", () =>
                         {
                             w.WriteLine("DetachChild(ot);");
                         });
                         w.WriteLine($"{typeName} newValue = value is null ? null : {call};");
                         w.WriteLine($"base.{name} = newValue;");
-                        w.Block("if (newValue is ITrackable nt)", () =>
+                        w.Block("if (newValue is global::Klopoff.TrackableState.Core.ITrackable nt)", () =>
                         {
-                            w.WriteLine($"AttachChild(new MemberInfo({name}Id, \"{name}\"), nt);");
+                            w.WriteLine($"AttachChild(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), nt);");
                         });
                         w.WriteLine("IsDirty = true;");
-                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(new MemberInfo({name}Id, \"{name}\"), Payload24.From(oldValue), Payload24.From(value)));");
+                        w.WriteLine($"Changed?.Invoke(this, global::Klopoff.TrackableState.Core.ChangeEventArgs.PropertySet(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), global::Klopoff.TrackableState.Core.Payload24.From(oldValue), global::Klopoff.TrackableState.Core.Payload24.From(value)));");
                     });
                 });
             });
@@ -265,17 +272,17 @@ internal static class Emitter
         {
             w.Block($"public override {typeName} {name}", () =>
             {
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                 w.WriteLine($"get => base.{name};");
-                w.WriteLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                 w.Block("set", () =>
                 {
-                    w.Block($"if (!EqualityComparer<{typeName}>.Default.Equals(base.{name}, value))", () =>
+                    w.Block($"if (!global::System.Collections.Generic.EqualityComparer<{typeName}>.Default.Equals(base.{name}, value))", () =>
                     {
                         w.WriteLine($"{typeName} oldValue = base.{name};");
                         w.WriteLine($"base.{name} = value;");
                         w.WriteLine("IsDirty = true;");
-                        w.WriteLine($"Changed?.Invoke(this, ChangeEventArgs.PropertySet(new MemberInfo({name}Id, \"{name}\"), Payload24.From(oldValue), Payload24.From(value)));");
+                        w.WriteLine($"Changed?.Invoke(this, global::Klopoff.TrackableState.Core.ChangeEventArgs.PropertySet(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), global::Klopoff.TrackableState.Core.Payload24.From(oldValue), global::Klopoff.TrackableState.Core.Payload24.From(value)));");
                     });
                 });
             });
@@ -306,9 +313,9 @@ internal static class Emitter
     {
         if (TypeInspection.IsTrackableType(p.Type) || TypeInspection.IsCollectionType(p.Type))
         {
-            w.Block($"if (base.{p.Name} is ITrackable t_{p.Name})", () =>
+            w.Block($"if (base.{p.Name} is global::Klopoff.TrackableState.Core.ITrackable t_{p.Name})", () =>
             {
-                w.WriteLine($"AttachChild(new MemberInfo({p.Name}Id, \"{p.Name}\"), t_{p.Name});");
+                w.WriteLine($"AttachChild(new global::Klopoff.TrackableState.Core.MemberInfo({p.Name}Id, \"{p.Name}\"), t_{p.Name});");
             });
         }
     }
@@ -325,6 +332,134 @@ internal static class Emitter
             w.WriteLine($"{p.Name} = {p.Name},");
         }
     }
+    
+    private static void EmitAttributes(CodeWriter w, ImmutableArray<AttributeData> attributes)
+    {
+        foreach (AttributeData? attr in attributes)
+        {
+            INamedTypeSymbol? type = attr.AttributeClass;
+            if (type == null)
+            {
+                continue;
+            }
+
+            if (IsTrackableAttribute(type))
+            {
+                continue;
+            }
+
+            string typeName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+            List<string> args = [];
+
+            foreach (TypedConstant a in attr.ConstructorArguments)
+            {
+                args.Add(RenderTypedConstant(a));
+            }
+
+            foreach (KeyValuePair<string, TypedConstant> n in attr.NamedArguments)
+            {
+                args.Add($"{n.Key} = {RenderTypedConstant(n.Value)}");
+            }
+
+            if (args.Count == 0)
+            {
+                w.WriteLine($"[{typeName}]");
+            }
+            else
+            {
+                w.WriteLine($"[{typeName}({string.Join(", ", args)})]");
+            }
+        }
+    }
+    
+    private static string RenderTypedConstant(TypedConstant c)
+    {
+        if (c.IsNull)
+        {
+            return "null";
+        }
+
+        switch (c.Kind)
+        {
+            case TypedConstantKind.Primitive:
+            {
+
+                return c.Value switch
+                {
+                    string s => $"\"{EscapeString(s)}\"",
+                    char ch => $"'{ch}'",
+                    bool b => b ? "true" : "false",
+                    float f => f.ToString("R", CultureInfo.InvariantCulture) + "f",
+                    double d => d.ToString("R", CultureInfo.InvariantCulture),
+                    decimal m => m.ToString(CultureInfo.InvariantCulture) + "m",
+                    IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+                    _ => c.Value!.ToString()!
+                };
+            }
+            case TypedConstantKind.Enum:
+            {
+                string enumType = c.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                return $"{enumType}.{c.Value}";
+            }
+            case TypedConstantKind.Type:
+            {
+                return $"typeof({c.Value})";
+            }
+            case TypedConstantKind.Array:
+            {
+                IEnumerable<string> values = c.Values.Select(RenderTypedConstant);
+                string type = c.Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                return $"new {type} {{ {string.Join(", ", values)} }}";
+            }
+            default: 
+                return c.Value?.ToString() ?? "null";
+        }
+    }
+    
+    private static string EscapeString(string s)
+    {
+        return s
+            .Replace("\\", @"\\")
+            .Replace("\"", "\\\"")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t");
+    }
+    
+    private static bool ShouldCopyAttributes(ISymbol symbol)
+    {
+        AttributeData? attr = symbol
+            .GetAttributes()
+            .FirstOrDefault(a => IsTrackableAttribute(a.AttributeClass));
+
+        if (attr == null)
+        {
+            return true;
+        }
+
+        foreach (KeyValuePair<string, TypedConstant> named in attr.NamedArguments)
+        {
+            if (named is { Key: "CopyAttributes", Value.Value: bool b })
+            {
+                return b;
+            }
+        }
+
+        return true;
+    }
+    
+    private static bool IsTrackableAttribute(INamedTypeSymbol? symbol)
+    {
+        if (symbol == null)
+        {
+            return false;
+        }
+
+        return symbol.Name == "TrackableAttribute" && 
+               symbol.ContainingNamespace.ToDisplayString() == "Klopoff.TrackableState.Core";
+    }
+
 
     private static string CallAsTrackableOnType(string expr, ITypeSymbol typeSymbol)
     {
@@ -341,7 +476,7 @@ internal static class Emitter
         string unwrapperLambda = elementIsTrackable
             ? $"static x => x is null ? null : {CallAsNormalOnType("x", typeSymbol)}"
             : "static x => x";
-        return $"{expr}.AsTrackable({wrapperLambda}, {unwrapperLambda})";
+        return $"{GetExtensionClassFqn(collectionType)}.AsTrackable({expr}, {wrapperLambda}, {unwrapperLambda})";
     }
     
     private static string CallAsNormalOnType(string expr, ITypeSymbol typeSymbol)
