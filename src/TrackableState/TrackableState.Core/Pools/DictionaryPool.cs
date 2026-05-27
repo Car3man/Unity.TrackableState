@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace Klopoff.TrackableState.Core.Pools
 {
-    public static class DictionaryPool<TKey, TValue>
+    internal static class DictionaryPool<TKey, TValue>
     {
         private static readonly ConcurrentBag<Dictionary<TKey, TValue>> Pool = new();
         private static readonly Action<Dictionary<TKey, TValue>> ReturnAction = Release;

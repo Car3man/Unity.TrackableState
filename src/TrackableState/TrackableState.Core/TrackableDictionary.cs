@@ -23,7 +23,7 @@ namespace Klopoff.TrackableState.Core
             _unwrapper = unwrapper ?? (x => x);
             _valueToKeys = new Dictionary<ITrackable, HashSet<TKey>>();
             
-            using var pooled = ListPool<TKey>.GetPooled(out var list);
+            using Pooled<List<TKey>> pooled = ListPool<TKey>.GetPooled(out List<TKey> list);
             
             foreach (TKey key in inner.Keys)
             {

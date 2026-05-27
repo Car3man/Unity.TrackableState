@@ -9,6 +9,12 @@
     <ItemGroup>
       <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
     </ItemGroup>
+
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+        <_Parameter1>TrackableState.Packer</_Parameter1>
+      </AssemblyAttribute>
+    </ItemGroup>
     
     <Target Name="CopyAfterBuild" AfterTargets="Build">
         <ItemGroup>

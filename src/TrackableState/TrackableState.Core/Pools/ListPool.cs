@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace Klopoff.TrackableState.Core.Pools
 {
-    public static class ListPool<T>
+    internal static class ListPool<T>
     {
         private static readonly ConcurrentBag<List<T>> Pool = new();
         private static readonly Action<List<T>> ReturnAction = Release;
@@ -17,7 +17,7 @@ namespace Klopoff.TrackableState.Core.Pools
         
         public static List<T> Get()
         {
-            if (Pool.TryTake(out var list))
+            if (Pool.TryTake(out List<T> list))
             {
                 Interlocked.Decrement(ref _count);
 

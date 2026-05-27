@@ -21,7 +21,7 @@ namespace Klopoff.TrackableState.Core
             _wrapper = wrapper ?? (x => x);
             _unwrapper = unwrapper ?? (x => x);
 
-            using var pooled = HashSetPool<T>.GetPooled(out var set);
+            using Pooled<HashSet<T>> pooled = HashSetPool<T>.GetPooled(out HashSet<T> set);
             
             foreach (T item in _inner)
             {

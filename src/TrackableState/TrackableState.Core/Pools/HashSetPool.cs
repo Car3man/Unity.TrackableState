@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace Klopoff.TrackableState.Core.Pools
 {
-    public static class HashSetPool<T>
+    internal static class HashSetPool<T>
     {
         private static readonly ConcurrentBag<HashSet<T>> Pool = new();
         private static readonly Action<HashSet<T>> ReturnAction = Release;
@@ -17,7 +17,7 @@ namespace Klopoff.TrackableState.Core.Pools
 
         public static HashSet<T> Get(IEqualityComparer<T> comparer = null)
         {
-            if (Pool.TryTake(out var set))
+            if (Pool.TryTake(out HashSet<T> set))
             {
                 Interlocked.Decrement(ref _count);
                 

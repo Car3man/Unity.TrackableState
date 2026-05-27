@@ -2,7 +2,7 @@
 
 namespace Klopoff.TrackableState.Core.Pools
 {
-    public readonly struct Pooled<TCollection> : IDisposable where TCollection : class
+    internal readonly struct Pooled<TCollection> : IDisposable where TCollection : class
     {
         private readonly TCollection _instance;
         private readonly Action<TCollection> _return;
