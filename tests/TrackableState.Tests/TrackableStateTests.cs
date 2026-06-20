@@ -57,6 +57,95 @@ namespace TrackableState.Tests
         }
 
         [Test]
+        public void Version_Increments_On_Changes_And_AcceptChanges_Accepts_Current_Version()
+        {
+            TrackableSampleRoot root = new SampleRoot().AsTrackable();
+            ITrackable trackable = root;
+
+            Assert.AreEqual(0, trackable.Version);
+            Assert.IsFalse(trackable.IsDirty);
+
+            root.Name = "John";
+            Assert.AreEqual(1, trackable.Version);
+            Assert.IsTrue(trackable.IsDirty);
+
+            root.Age = 42;
+            Assert.AreEqual(2, trackable.Version);
+
+            trackable.AcceptChanges();
+            Assert.AreEqual(2, trackable.Version);
+            Assert.IsFalse(trackable.IsDirty);
+
+            root.Name = "Jane";
+            Assert.AreEqual(3, trackable.Version);
+            Assert.IsTrue(trackable.IsDirty);
+        }
+
+        [Test]
+        public void Collection_Versions_Track_Structural_Changes_And_AcceptChanges()
+        {
+            TrackableList<string> list = new List<string>().AsTrackable(x => x, x => x);
+            TrackableSet<string> set = new HashSet<string>().AsTrackable(x => x, x => x);
+            TrackableDictionary<string, string> dictionary = new Dictionary<string, string>().AsTrackable(x => x, x => x);
+
+            list.Add("one");
+            set.Add("one");
+            dictionary.Add("one", "one");
+
+            Assert.AreEqual(1, list.Version);
+            Assert.AreEqual(1, set.Version);
+            Assert.AreEqual(1, dictionary.Version);
+            Assert.IsTrue(list.IsDirty);
+            Assert.IsTrue(set.IsDirty);
+            Assert.IsTrue(dictionary.IsDirty);
+
+            list.AcceptChanges();
+            set.AcceptChanges();
+            dictionary.AcceptChanges();
+
+            Assert.IsFalse(list.IsDirty);
+            Assert.IsFalse(set.IsDirty);
+            Assert.IsFalse(dictionary.IsDirty);
+
+            list[0] = "two";
+            set.Remove("one");
+            dictionary["one"] = "two";
+
+            Assert.AreEqual(2, list.Version);
+            Assert.AreEqual(2, set.Version);
+            Assert.AreEqual(2, dictionary.Version);
+        }
+
+        [Test]
+        public void Version_Increments_When_Trackable_Children_Change()
+        {
+            TrackableSampleRoot root = new SampleRoot
+            {
+                Inner = new SampleInner { Description = "inner" },
+                InnerList = new List<SampleInner> { new() { Description = "list item" } }
+            }.AsTrackable();
+            ITrackable trackableRoot = root;
+            ITrackable trackableInner = (ITrackable)root.Inner;
+            ITrackable trackableList = (ITrackable)root.InnerList;
+
+            root.AcceptChanges();
+
+            root.Inner.Description = "changed inner";
+
+            Assert.AreEqual(1, trackableInner.Version);
+            Assert.AreEqual(1, trackableRoot.Version);
+            Assert.IsTrue(trackableRoot.IsDirty);
+
+            root.AcceptChanges();
+            root.InnerList[0].Description = "changed list item";
+
+            Assert.AreEqual(1, trackableList.Version);
+            Assert.AreEqual(2, trackableRoot.Version);
+            Assert.IsTrue(trackableList.IsDirty);
+            Assert.IsTrue(trackableRoot.IsDirty);
+        }
+
+        [Test]
         public void SimpleProperty_Changes_Raise_PropertySet()
         {
             SampleRoot root = NewRoot(out List<ChangeEventArgs> events);

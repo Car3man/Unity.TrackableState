@@ -56,17 +56,14 @@ internal static class Emitter
             w.Block($"public sealed class {trackableName} : {baseName}, global::Klopoff.TrackableState.Core.ITrackable", () =>
             {
                 w.WriteLine("private readonly global::System.Collections.Generic.Dictionary<global::Klopoff.TrackableState.Core.ITrackable, global::Klopoff.TrackableState.Core.MemberInfo> _children;");
+                w.WriteLine("private long _version;");
+                w.WriteLine("private long _acceptedVersion;");
+                w.BlankLine();
+                w.WriteLine("public long Version => _version;");
+                w.BlankLine();
+                w.WriteLine("public bool IsDirty => _version != _acceptedVersion;");
                 w.BlankLine();
                 w.WriteLine("public event global::Klopoff.TrackableState.Core.ChangeEventHandler Changed;");
-                w.BlankLine();
-                w.WriteLine("[global::System.Runtime.Serialization.IgnoreDataMemberAttribute]");
-                w.Block("public bool IsDirty", () =>
-                {
-                    w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-                    w.WriteLine("get;");
-                    w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-                    w.WriteLine("private set;");
-                });
                 w.BlankLine();
 
                 // overrides
@@ -87,16 +84,12 @@ internal static class Emitter
                 w.Block($"public {trackableName}()", () =>
                 {
                     w.WriteLine("_children = new global::System.Collections.Generic.Dictionary<global::Klopoff.TrackableState.Core.ITrackable, global::Klopoff.TrackableState.Core.MemberInfo>();");
-                    w.BlankLine();
-                    w.WriteLine("IsDirty = false;");
                 });
                 w.BlankLine();
                 
                 w.Block($"public {trackableName}({baseName} source)", () =>
                 {
                     w.WriteLine("_children = new global::System.Collections.Generic.Dictionary<global::Klopoff.TrackableState.Core.ITrackable, global::Klopoff.TrackableState.Core.MemberInfo>();");
-                    w.BlankLine();
-                    w.WriteLine("IsDirty = false;");
                     w.BlankLine();
                     foreach (IPropertySymbol p in propsVirtual)
                     {
@@ -131,7 +124,7 @@ internal static class Emitter
                         w.WriteLine("c.AcceptChanges();");
                     });
                     w.BlankLine();
-                    w.WriteLine("IsDirty = false;");
+                    w.WriteLine("_acceptedVersion = _version;");
                 });
                 w.BlankLine();
                 
@@ -161,9 +154,12 @@ internal static class Emitter
                 w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
                 w.Block("public void OnChange(object sender, in global::Klopoff.TrackableState.Core.ChangeEventArgs args)", () =>
                 {
-                    w.WriteLine("IsDirty = true;");
+                    w.WriteLine("IncrementVersion();");
                     w.WriteLine("Changed?.Invoke(this, global::Klopoff.TrackableState.Core.ChangeEventArgs.ChildProperty(args, _children[(global::Klopoff.TrackableState.Core.ITrackable)sender]));");
                 });
+                w.BlankLine();
+                w.WriteLine("[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+                w.WriteLine("private void IncrementVersion() => _version = unchecked(_version + 1);");
             });
             w.BlankLine();
 
@@ -232,7 +228,7 @@ internal static class Emitter
                         {
                             w.WriteLine($"AttachChild(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), nt);");
                         });
-                        w.WriteLine("IsDirty = true;");
+                        w.WriteLine("IncrementVersion();");
                         w.WriteLine($"Changed?.Invoke(this, global::Klopoff.TrackableState.Core.ChangeEventArgs.PropertySet(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), global::Klopoff.TrackableState.Core.Payload24.From(oldValue), global::Klopoff.TrackableState.Core.Payload24.From(value)));");
                     });
                 });
@@ -262,7 +258,7 @@ internal static class Emitter
                         {
                             w.WriteLine($"AttachChild(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), nt);");
                         });
-                        w.WriteLine("IsDirty = true;");
+                        w.WriteLine("IncrementVersion();");
                         w.WriteLine($"Changed?.Invoke(this, global::Klopoff.TrackableState.Core.ChangeEventArgs.PropertySet(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), global::Klopoff.TrackableState.Core.Payload24.From(oldValue), global::Klopoff.TrackableState.Core.Payload24.From(value)));");
                     });
                 });
@@ -281,7 +277,7 @@ internal static class Emitter
                     {
                         w.WriteLine($"{typeName} oldValue = base.{name};");
                         w.WriteLine($"base.{name} = value;");
-                        w.WriteLine("IsDirty = true;");
+                        w.WriteLine("IncrementVersion();");
                         w.WriteLine($"Changed?.Invoke(this, global::Klopoff.TrackableState.Core.ChangeEventArgs.PropertySet(new global::Klopoff.TrackableState.Core.MemberInfo({name}Id, \"{name}\"), global::Klopoff.TrackableState.Core.Payload24.From(oldValue), global::Klopoff.TrackableState.Core.Payload24.From(value)));");
                     });
                 });

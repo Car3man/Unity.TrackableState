@@ -11,9 +11,14 @@ namespace Klopoff.TrackableState.Core
         private readonly ISet<T> _inner;
         private readonly Func<T, T> _wrapper;
         private readonly Func<T, T> _unwrapper;
+        private long _version;
+        private long _acceptedVersion;
+
+        public long Version => _version;
+
+        public bool IsDirty => _version != _acceptedVersion;
         
         public event ChangeEventHandler Changed;
-        public bool IsDirty { get; private set; }
         
         public TrackableSet(ISet<T> inner, Func<T, T> wrapper, Func<T, T> unwrapper)
         {
@@ -60,7 +65,7 @@ namespace Klopoff.TrackableState.Core
                 }
             }
             
-            IsDirty = false;
+            _acceptedVersion = _version;
         }
         
         private void HookAll()
@@ -92,9 +97,12 @@ namespace Klopoff.TrackableState.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void OnChange(object sender, in ChangeEventArgs args)
         {
-            IsDirty = true;
+            IncrementVersion();
             Changed?.Invoke(this, ChangeEventArgs.ChildOfSet(args));
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void IncrementVersion() => _version = unchecked(_version + 1);
 
         #region ISet<T>
         
@@ -109,7 +117,7 @@ namespace Klopoff.TrackableState.Core
             if (added)
             {
                 Hook(newItem);
-                IsDirty = true;
+                IncrementVersion();
                 Changed?.Invoke(this, ChangeEventArgs.SetAdd(newValue: Payload24.From(newItem)));
             }
             return added;
@@ -203,7 +211,7 @@ namespace Klopoff.TrackableState.Core
         {
             if (_inner.Count > 0)
             {
-                IsDirty = true;
+                IncrementVersion();
             }
             
             foreach (T it in _inner)
@@ -224,7 +232,7 @@ namespace Klopoff.TrackableState.Core
             if (_inner.Remove(item))
             {
                 Unhook(item);
-                IsDirty = true;
+                IncrementVersion();
                 Changed?.Invoke(this, ChangeEventArgs.SetRemove(oldValue: Payload24.From(item)));
                 return true;
             }

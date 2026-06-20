@@ -12,9 +12,14 @@ namespace Klopoff.TrackableState.Core
         private readonly Func<TValue, TValue> _wrapper;
         private readonly Func<TValue, TValue> _unwrapper;
         private readonly Dictionary<ITrackable, HashSet<TKey>> _valueToKeys;
+        private long _version;
+        private long _acceptedVersion;
+
+        public long Version => _version;
+
+        public bool IsDirty => _version != _acceptedVersion;
         
         public event ChangeEventHandler Changed;
-        public bool IsDirty { get; private set; }
         
         public TrackableDictionary(IDictionary<TKey, TValue> inner, Func<TValue, TValue> wrapper, Func<TValue, TValue> unwrapper)
         {
@@ -60,7 +65,7 @@ namespace Klopoff.TrackableState.Core
                 }
             }
             
-            IsDirty = false;
+            _acceptedVersion = _version;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -106,7 +111,7 @@ namespace Klopoff.TrackableState.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void OnChange(object sender, in ChangeEventArgs args)
         {
-            IsDirty = true;
+            IncrementVersion();
             
             if (sender is ITrackable t && _valueToKeys.TryGetValue(t, out HashSet<TKey> keys))
             {
@@ -116,6 +121,9 @@ namespace Klopoff.TrackableState.Core
                 }
             }
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void IncrementVersion() => _version = unchecked(_version + 1);
         
         #region IDictionary<TKey,TValue>
         
@@ -136,7 +144,7 @@ namespace Klopoff.TrackableState.Core
                     _inner[key] = newItem;
                     Hook(key, newItem);
 
-                    IsDirty = true;
+                    IncrementVersion();
                     Changed?.Invoke(this, had 
                         ? ChangeEventArgs.DictionaryReplace(oldValue: Payload24.From(oldItem), newValue: Payload24.From(newItem), key: Payload24.From(key)) 
                         : ChangeEventArgs.DictionaryAdd(newValue: Payload24.From(newItem), key: Payload24.From(key)));
@@ -157,7 +165,7 @@ namespace Klopoff.TrackableState.Core
             TValue newItem = _wrapper(value);
             _inner.Add(key, newItem);
             Hook(key, newItem);
-            IsDirty = true;
+            IncrementVersion();
             Changed?.Invoke(this, ChangeEventArgs.DictionaryAdd(newValue: Payload24.From(newItem), key: Payload24.From(key)));
         }
 
@@ -171,7 +179,7 @@ namespace Klopoff.TrackableState.Core
                 bool ok = _inner.Remove(key);
                 if (ok)
                 {
-                    IsDirty = true;
+                    IncrementVersion();
                     Changed?.Invoke(this, ChangeEventArgs.DictionaryRemove(oldValue: Payload24.From(oldItem), key: Payload24.From(key)));
                 }
                 return ok;
@@ -187,7 +195,7 @@ namespace Klopoff.TrackableState.Core
         {
             if (_inner.Count > 0)
             {
-                IsDirty = true;
+                IncrementVersion();
             }
             
             foreach (KeyValuePair<TKey, TValue> kv in _inner)

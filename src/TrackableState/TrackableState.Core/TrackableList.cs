@@ -10,9 +10,14 @@ namespace Klopoff.TrackableState.Core
         private readonly IList<T> _inner;
         private readonly Func<T, T> _wrapper;
         private readonly Func<T, T> _unwrapper;
+        private long _version;
+        private long _acceptedVersion;
+
+        public long Version => _version;
+
+        public bool IsDirty => _version != _acceptedVersion;
 
         public event ChangeEventHandler Changed;
-        public bool IsDirty { get; private set; }
         
         public TrackableList(IList<T> inner, Func<T, T> wrapper, Func<T, T> unwrapper)
         {
@@ -50,7 +55,7 @@ namespace Klopoff.TrackableState.Core
                 }
             }
             
-            IsDirty = false;
+            _acceptedVersion = _version;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -83,7 +88,7 @@ namespace Klopoff.TrackableState.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void OnChange(object sender, in ChangeEventArgs args)
         {
-            IsDirty = true;
+            IncrementVersion();
             
             int index = -1;
             if (sender is T sAsT)
@@ -106,6 +111,9 @@ namespace Klopoff.TrackableState.Core
             }
             return -1;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void IncrementVersion() => _version = unchecked(_version + 1);
         
         #region IList<T>
         
@@ -121,7 +129,7 @@ namespace Klopoff.TrackableState.Core
                     Unhook(oldItem);
                     _inner[index] = newItem;
                     Hook(newItem);
-                    IsDirty = true;
+                    IncrementVersion();
                     Changed?.Invoke(this, ChangeEventArgs.ListReplace(oldValue: Payload24.From(oldItem), newValue: Payload24.From(newItem), index));
                 }
             }
@@ -137,7 +145,7 @@ namespace Klopoff.TrackableState.Core
             T newItem = _wrapper(item);
             _inner.Add(newItem);
             Hook(newItem);
-            IsDirty = true;
+            IncrementVersion();
             Changed?.Invoke(this, ChangeEventArgs.ListAdd(newValue: Payload24.From(newItem), index));
         }
 
@@ -145,7 +153,7 @@ namespace Klopoff.TrackableState.Core
         {
             if (_inner.Count > 0)
             {
-                IsDirty = true;
+                IncrementVersion();
             }
             
             foreach (T it in _inner)
@@ -166,7 +174,7 @@ namespace Klopoff.TrackableState.Core
             T newItem = _wrapper(item);
             _inner.Insert(index, newItem);
             Hook(newItem);
-            IsDirty = true;
+            IncrementVersion();
             Changed?.Invoke(this, ChangeEventArgs.ListAdd(newValue: Payload24.From(newItem), index));
         }
 
@@ -187,7 +195,7 @@ namespace Klopoff.TrackableState.Core
             T oldItem = _inner[index];
             Unhook(oldItem);
             _inner.RemoveAt(index);
-            IsDirty = true;
+            IncrementVersion();
             Changed?.Invoke(this, ChangeEventArgs.ListRemove(oldValue: Payload24.From(oldItem), index));
         }
         
